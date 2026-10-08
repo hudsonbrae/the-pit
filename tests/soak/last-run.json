@@ -1,0 +1,75 @@
+{
+  "ranAt": "2026-10-08T10:56:19.247Z",
+  "minutes": 1.5,
+  "warmupMinutes": 0.5,
+  "heapBaselineMB": 19.7,
+  "heapEndMB": 20.2,
+  "heapGrowthMB": 0.4,
+  "heapSlopeMBPerMin": 0.43,
+  "eventLoopP99ms": 10.9,
+  "eventLoopMaxMs": 128.3,
+  "rounds": [
+    {
+      "code": "PVDYF",
+      "mode": "sim",
+      "rounds": 3,
+      "aiRounds": 2,
+      "offlineRounds": 0,
+      "live": 0
+    },
+    {
+      "code": "ATXBJ",
+      "mode": "real",
+      "rounds": 3,
+      "aiRounds": 3,
+      "offlineRounds": 0,
+      "live": 2
+    }
+  ],
+  "clients": [
+    {
+      "name": "Brae",
+      "deltasPerSec": 6.18,
+      "avgBytes": 1328,
+      "p99GapMs": 251,
+      "maxGapMs": 254
+    },
+    {
+      "name": "Sam",
+      "deltasPerSec": 6.18,
+      "avgBytes": 1328,
+      "p99GapMs": 251,
+      "maxGapMs": 254
+    },
+    {
+      "name": "Alex",
+      "deltasPerSec": 6.18,
+      "avgBytes": 1328,
+      "p99GapMs": 251,
+      "maxGapMs": 254
+    },
+    {
+      "name": "Brae",
+      "deltasPerSec": 5.53,
+      "avgBytes": 1266,
+      "p99GapMs": 251,
+      "maxGapMs": 330
+    },
+    {
+      "name": "Kim",
+      "deltasPerSec": 5.53,
+      "avgBytes": 1266,
+      "p99GapMs": 251,
+      "maxGapMs": 330
+    }
+  ],
+  "usage": {
+    "day": "2026-10-08",
+    "rounds": 6,
+    "roundCap": 200,
+    "small": 1,
+    "smallCap": 400,
+    "tokensIn": 7943,
+    "tokensOut": 2081
+  }
+}

@@ -1,0 +1,1085 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>The Pit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a trading-floor terminal. Chart + newsroom on the left, the AI floor on the right, plumbing (book, tape, your seat) underneath. Single dark look by design. */
+:root{
+  --ground:#0c1219; --panel:#121a24; --panel2:#17212d; --line:#233142; --line2:#2e3f53;
+  --fg:#dce4ec; --muted:#7d8ca0; --faint:#4f5f73;
+  --amber:#f0a83a; --amber-ink:#1a1206;
+  --up:#36c2a0; --down:#f0605a; --up-bg:#123a32; --down-bg:#3d1a1b;
+  --a-marlowe:#e3b26b; --a-kestrel:#5fc3e4; --a-juno:#a495f2; --a-ash:#e47c9c; --a-vega:#7fd17f; --a-pip:#f2d24b; --a-you:#f4f7fa;
+  --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--ground);color:var(--fg)}
+body{font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.up{color:var(--up)} .down{color:var(--down)}
+
+.wrap{max-width:1440px;margin:0 auto;padding-block:14px 40px;padding-inline:16px;display:grid;gap:12px}
+
+/* header */
+.bar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 28px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.brand{display:flex;flex-direction:column;gap:2px;min-width:0}
+.brand h1{margin:0;font:900 44px/0.85 var(--display);letter-spacing:.02em;text-transform:uppercase;color:var(--amber)}
+.brand p{margin:0;font:500 11px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.quote{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.quote .px{font:800 52px/0.9 var(--display);letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.quote .chg{font:600 16px var(--mono)}
+.stats{display:flex;flex-wrap:wrap;gap:6px 18px;margin-left:auto}
+.stat{display:flex;flex-direction:column;gap:1px}
+.stat span{font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.stat b{font:500 14px var(--mono);font-variant-numeric:tabular-nums}
+.pills{display:flex;gap:8px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid var(--line2);border-radius:999px;font:600 10.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.pill.live i{background:var(--up);box-shadow:0 0 8px var(--up)}
+.pill.halt{color:var(--amber);border-color:var(--amber)} .pill.halt i{background:var(--amber)}
+.pill.ai i{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.pill.off i{background:var(--faint)}
+
+/* grid */
+.grid{display:grid;gap:12px;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 380px;
+  grid-template-areas:"chart chart floor" "desk desk floor" "book tape you"}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;min-width:0;display:flex;flex-direction:column}
+.ph{display:flex;align-items:baseline;gap:10px;padding:10px 14px 8px;border-bottom:1px solid var(--line)}
+.ph h2{margin:0;font:800 19px/1 var(--display);letter-spacing:.06em;text-transform:uppercase}
+.ph small{font:500 11px var(--mono);color:var(--muted);letter-spacing:.04em}
+.ph .sp{flex:1}
+.ph{flex-wrap:wrap}
+.p-chart{grid-area:chart}.p-desk{grid-area:desk}.p-floor{grid-area:floor}.p-book{grid-area:book}.p-tape{grid-area:tape}.p-you{grid-area:you}
+
+/* chart */
+.chartbox{position:relative;height:340px}
+#chart{position:absolute;inset:0;width:100%;height:100%;display:block}
+.haltbanner{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);padding:10px 18px;background:var(--amber);color:var(--amber-ink);font:900 26px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;border-radius:3px;white-space:nowrap;box-shadow:0 0 0 6px rgba(240,168,58,.18)}
+.haltbanner small{display:block;font:600 11px/1.4 var(--mono);letter-spacing:.08em;margin-top:4px}
+.legend{display:flex;gap:12px;font:500 11px var(--mono);color:var(--muted)}
+.legend b{color:var(--amber);font-weight:600}
+
+/* desk */
+.desk{padding:14px;display:grid;gap:12px}
+.newsform{display:flex;gap:8px}
+.newsform input{flex:1;min-width:0;background:var(--ground);border:1px solid var(--line2);border-radius:4px;padding:12px 14px;font:500 16px var(--sans)}
+.newsform input::placeholder{color:var(--faint)}
+.btn{border:1px solid var(--line2);background:var(--panel2);border-radius:4px;padding:9px 14px;font:600 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--amber);color:var(--amber)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.primary{background:var(--amber);color:var(--amber-ink);border-color:var(--amber);font-weight:700;padding:12px 18px;font-size:13px}
+.btn.primary:hover:not(:disabled){filter:brightness(1.08);color:var(--amber-ink)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px dashed var(--line2);background:transparent;border-radius:3px;padding:6px 9px;font:500 12.5px/1.25 var(--sans);color:var(--muted);text-align:left}
+.chip:hover:not(:disabled){color:var(--fg);border-style:solid;border-color:var(--muted)}
+.chip:disabled{opacity:.4;cursor:default}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.toggle{display:inline-flex;align-items:center;gap:7px;font:500 12px var(--mono);color:var(--muted);margin-left:auto;cursor:pointer}
+.toggle input{accent-color:var(--amber)}
+.status{font:500 12px var(--mono);color:var(--muted);min-height:1.2em}
+.status.busy{color:var(--amber)}
+.wrapout{border-left:3px solid var(--amber);background:var(--panel2);padding:12px 14px;font:400 14.5px/1.55 var(--sans);white-space:pre-wrap;max-width:75ch}
+.wrapout h3{margin:0 0 6px;font:800 14px var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--amber)}
+.wire{list-style:none;margin:0;padding:0;display:grid;gap:0;max-height:300px;overflow:auto;border-top:1px solid var(--line)}
+.wire li{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:4px 12px;padding:9px 2px;border-bottom:1px solid var(--line)}
+.wire .tm{font:500 12px var(--mono);color:var(--muted);padding-top:1px}
+.wire .hl{font:600 14.5px/1.35 var(--sans);text-wrap:balance}
+.wire .hl .no{display:inline-block;min-width:18px;margin-right:6px;padding:1px 4px;border-radius:2px;background:var(--amber);color:var(--amber-ink);font:700 10.5px/1.3 var(--mono);text-align:center;vertical-align:2px}
+.wire .rd{grid-column:2/4;color:var(--muted);font-size:13px}
+.wire li.sys .hl{font:600 12.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--amber)}
+.imp{font:600 12px var(--mono);padding:3px 7px;border-radius:3px;white-space:nowrap;align-self:start}
+.imp.pos{background:var(--up-bg);color:var(--up)}.imp.neg{background:var(--down-bg);color:var(--down)}.imp.flat{background:var(--panel2);color:var(--muted)}
+.imp.wait{color:var(--amber);background:transparent;border:1px solid var(--amber)}
+
+/* floor */
+.floor{display:grid;gap:0}
+.agent{display:grid;gap:5px;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);padding:11px 14px 12px;position:relative}
+.agent:hover{background:var(--panel2)}
+.agent::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c);opacity:.0;transition:opacity .4s}
+.agent.flash::before{opacity:1}
+.ah{display:flex;align-items:center;gap:8px;min-width:0}
+.ah .dot{width:9px;height:9px;border-radius:2px;background:var(--c);flex:none}
+.ah b{font:800 17px/1 var(--display);letter-spacing:.05em;text-transform:uppercase}
+.ah .tag{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ah .pnl{margin-left:auto;font:600 13px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.act{font:600 11.5px var(--mono);letter-spacing:.04em;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.act .side{padding:2px 6px;border-radius:2px}
+.act .side.buy{background:var(--up-bg);color:var(--up)}.act .side.sell{background:var(--down-bg);color:var(--down)}.act .side.hold{background:var(--panel2);color:var(--muted)}
+.act .fill{color:var(--muted);font-weight:500}
+.thought{margin:0;font:400 14px/1.45 var(--sans);color:var(--fg);min-height:1.45em}
+.thought.dim{color:var(--muted);font-style:italic}
+.agent.thinking .thought{color:var(--muted)}
+.agent.thinking .ah .dot{animation:blink .7s steps(2) infinite}
+@keyframes blink{50%{opacity:.15}}
+.meta{display:flex;align-items:center;gap:10px;font:500 11px var(--mono);color:var(--muted)}
+.conv{flex:0 0 70px;height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+.conv i{display:block;height:100%;background:var(--c);transition:width .6s}
+
+/* book + tape */
+.book{padding:8px 14px 12px;display:grid;gap:1px;font:500 12.5px var(--mono);font-variant-numeric:tabular-nums}
+.lvl{display:grid;grid-template-columns:1fr 70px 70px;gap:8px;position:relative;padding:2px 4px;align-items:center}
+.lvl .bar{position:absolute;right:0;top:1px;bottom:1px;border-radius:1px;opacity:.22}
+.lvl.ask .bar{background:var(--down)}.lvl.bid .bar{background:var(--up)}
+.lvl .who{display:flex;gap:3px}
+.lvl .who i{width:7px;height:7px;border-radius:2px;display:inline-block}
+.lvl span{position:relative;text-align:right}
+.lvl.ask span.p{color:var(--down)}.lvl.bid span.p{color:var(--up)}
+.spread{padding:5px 4px;color:var(--muted);font-size:11px;border-block:1px solid var(--line);margin-block:3px;display:flex;justify-content:space-between}
+.colh{display:grid;grid-template-columns:1fr 70px 70px;gap:8px;padding:0 4px 4px;font:500 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.colh span{text-align:right}
+.tape{list-style:none;margin:0;padding:6px 14px 12px;font:500 12.5px var(--mono);font-variant-numeric:tabular-nums;display:grid;gap:1px}
+.tape li{display:grid;grid-template-columns:64px 64px 56px minmax(0,1fr);gap:8px;padding:2px 0;white-space:nowrap}
+.tape .tt{color:var(--faint)}
+.tape .q{text-align:right}
+.tape .who{overflow:hidden;text-overflow:ellipsis}
+.tape li.big{background:var(--panel2)}
+
+/* you */
+.you{padding:12px 14px 14px;display:grid;gap:12px}
+.youstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.youstats .stat b{font-size:15px}
+.seg{display:flex;border:1px solid var(--line2);border-radius:4px;overflow:hidden}
+.seg button{flex:1;background:transparent;border:0;padding:8px 0;font:600 12px var(--mono);color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--panel2);color:var(--fg);box-shadow:inset 0 -2px 0 var(--amber)}
+.tradebtns{display:grid;grid-template-columns:1fr 1fr auto;gap:8px}
+.bb{border:0;border-radius:4px;padding:12px;font:800 18px/1 var(--display);letter-spacing:.08em;text-transform:uppercase}
+.bb.buy{background:var(--up);color:#06231c}.bb.sell{background:var(--down);color:#2a0807}
+.bb:hover{filter:brightness(1.1)}
+.toast{font:500 12px var(--mono);color:var(--muted);min-height:1.3em}
+.stand{list-style:none;margin:0;padding:0;display:grid;gap:0;border-top:1px solid var(--line)}
+.stand li{display:grid;grid-template-columns:20px 10px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font:500 13px var(--mono);font-variant-numeric:tabular-nums}
+.stand li .rk{color:var(--faint)}
+.stand li i{width:8px;height:8px;border-radius:2px;background:var(--c)}
+.stand li.me{color:var(--amber)}
+.stand h3{margin:0}
+.sub{font:800 13px var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0}
+
+.pbtn{background:transparent;cursor:pointer}
+.pbtn[aria-pressed="true"]{color:var(--amber);border-color:var(--amber)}
+.mini{display:flex;border:1px solid var(--line2);border-radius:3px;overflow:hidden;align-self:center}
+.mini button{background:transparent;border:0;padding:4px 9px;font:600 11px var(--mono);color:var(--muted)}
+.mini button[aria-pressed="true"]{background:var(--panel2);color:var(--amber)}
+.lsn{margin-left:auto;font:600 10.5px var(--mono);letter-spacing:.04em;color:var(--muted)}
+.lsn.new{color:var(--amber)}
+.chatter{list-style:none;margin:0;padding:8px 14px;display:grid;gap:6px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.chatter li{font:400 13.5px/1.4 var(--sans);display:flex;flex-wrap:wrap;gap:0 6px;align-items:baseline}
+.chatter b{font:800 13px var(--display);letter-spacing:.06em;text-transform:uppercase}
+.chatter .to{font:500 11px var(--mono);color:var(--muted)}
+.chatter .ln{flex-basis:100%}
+.lessons{margin:0;padding-left:20px;display:grid;gap:6px}
+.lessons li.none{list-style:none;margin-left:-20px;color:var(--muted)}
+/* drawer */
+.scrim{position:fixed;inset:0;background:rgba(4,7,11,.6);z-index:20}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);background:var(--panel);border-left:1px solid var(--line2);z-index:21;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.dh{display:flex;align-items:center;gap:10px;padding:16px;border-bottom:1px solid var(--line)}
+.dh .dot{width:12px;height:12px;border-radius:3px;background:var(--c)}
+.dh h2{margin:0;font:900 28px/1 var(--display);letter-spacing:.04em;text-transform:uppercase}
+.dh .x{margin-left:auto;background:transparent;border:1px solid var(--line2);border-radius:4px;width:34px;height:34px;font:600 16px var(--mono)}
+.db{padding:14px 16px;overflow:auto;display:grid;gap:14px;align-content:start;flex:1}
+.db .voice{margin:0;color:var(--muted);font-size:13.5px}
+.hist{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.hist li{border-left:2px solid var(--line2);padding-left:10px;display:grid;gap:3px}
+.hist .hh{font:500 11px var(--mono);color:var(--muted)}
+.askform{display:flex;gap:8px}
+.askform input{flex:1;min-width:0;background:var(--ground);border:1px solid var(--line2);border-radius:4px;padding:10px 12px}
+.answer{background:var(--panel2);border-left:3px solid var(--c);padding:10px 12px;white-space:pre-wrap;font-size:14.5px}
+.answer:empty{display:none}
+
+body.shake-down .p-chart{animation:fd 1s ease-out}
+body.shake-up .p-chart{animation:fu 1s ease-out}
+@keyframes fd{0%{box-shadow:0 0 0 2px var(--down),0 0 40px var(--down)}100%{box-shadow:none}}
+@keyframes fu{0%{box-shadow:0 0 0 2px var(--up),0 0 40px var(--up)}100%{box-shadow:none}}
+
+@media (max-width:1100px){
+  .grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"chart chart" "desk desk" "floor you" "floor book" "floor tape"}
+}
+@media (max-width:760px){
+  .grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"chart" "desk" "floor" "you" "tape" "book"}
+  .brand h1{font-size:36px}
+  .quote .px{font-size:42px}
+  .stats{margin-left:0}
+  .chartbox{height:250px}
+  .legend{display:none}
+  .newsform{flex-direction:column}
+  .toggle{margin-left:0}
+  .wire li{grid-template-columns:52px minmax(0,1fr)}
+  .wire .imp{grid-column:2;justify-self:start}
+  .tape li{grid-template-columns:58px 58px 44px minmax(0,1fr);font-size:12px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="bar">
+    <div class="brand">
+      <h1>The Pit</h1>
+      <p>HLCN · Halcyon Dynamics · simulated exchange</p>
+    </div>
+    <div class="quote">
+      <span class="px num" id="px">100.00</span>
+      <span class="chg" id="chg">+0.00 (0.00%)</span>
+    </div>
+    <div class="pills">
+      <span class="pill live" id="mkt"><i></i><span>Market open</span></span>
+      <span class="pill off" id="ai"><i></i><span>Connecting Claude</span></span>
+      <button class="pill pbtn" id="soundBtn" type="button" aria-pressed="false">Sound off</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><span>Clock</span><b id="sClock">09:30:00</b></div>
+      <div class="stat"><span>Open</span><b id="sOpen">100.00</b></div>
+      <div class="stat"><span>High</span><b id="sHigh">-</b></div>
+      <div class="stat"><span>Low</span><b id="sLow">-</b></div>
+      <div class="stat"><span>VWAP</span><b id="sVwap">-</b></div>
+      <div class="stat"><span>Volume</span><b id="sVol">-</b></div>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="panel p-chart" aria-label="Price chart">
+      <div class="ph"><h2>HLCN</h2><small>5-second candles</small><span class="sp"></span><div class="legend"><span><b>#</b> headline</span><span>▲▼ AI fills</span><span>shaded: halt</span></div><div class="mini" id="speed" role="group" aria-label="Simulation speed"><button type="button" data-s="0" aria-pressed="false">Pause</button><button type="button" data-s="1" aria-pressed="true">1×</button><button type="button" data-s="3" aria-pressed="false">3×</button></div></div>
+      <div class="chartbox">
+        <canvas id="chart" role="img" aria-label="Candlestick chart of HLCN price"></canvas>
+        <div class="haltbanner" id="haltBanner" hidden><span id="haltTitle">Limit down</span><small id="haltSub">Circuit breaker · trading halted</small></div>
+      </div>
+    </section>
+
+    <section class="panel p-desk" aria-label="Newsroom">
+      <div class="ph"><h2>Newsroom</h2><small>Write the news. Claude's six traders read it and trade.</small></div>
+      <div class="desk">
+        <form class="newsform" id="newsForm" autocomplete="off">
+          <input id="headline" maxlength="220" placeholder="Type any headline, real or ridiculous…" aria-label="Headline">
+          <button class="btn primary" id="breakBtn" type="submit">Break the news</button>
+        </form>
+        <div class="chips" id="chips"></div>
+        <div class="tools">
+          <button class="btn" id="surpriseBtn" type="button">Claude writes the news</button>
+          <button class="btn" id="checkBtn" type="button">Floor check</button>
+          <button class="btn" id="wrapBtn" type="button">Market wrap</button>
+          <label class="toggle"><input type="checkbox" id="deep"> Deep think (slower)</label>
+        </div>
+        <div class="status" id="status" aria-live="polite"></div>
+        <div class="wrapout" id="wrap" hidden><h3>Market wrap</h3><div id="wrapText"></div></div>
+        <ul class="wire" id="wire" aria-label="News wire"></ul>
+      </div>
+    </section>
+
+    <section class="panel p-floor" aria-label="AI traders">
+      <div class="ph"><h2>The floor</h2><small>6 AI traders · tap one to question them</small></div>
+      <ul class="chatter" id="chatter" hidden aria-label="Floor chatter" aria-live="polite"></ul>
+      <div class="floor" id="floor"></div>
+    </section>
+
+    <section class="panel p-you" aria-label="Your seat">
+      <div class="ph"><h2>Your seat</h2><small>$1M · beat the machines</small></div>
+      <div class="you">
+        <div class="youstats">
+          <div class="stat"><span>Position</span><b id="yPos">0</b></div>
+          <div class="stat"><span>Avg cost</span><b id="yAvg">-</b></div>
+          <div class="stat"><span>P&amp;L</span><b id="yPnl">$0</b></div>
+        </div>
+        <div class="seg" id="sizes" role="group" aria-label="Order size">
+          <button type="button" data-q="100" aria-pressed="false">100</button>
+          <button type="button" data-q="500" aria-pressed="true">500</button>
+          <button type="button" data-q="2000" aria-pressed="false">2,000</button>
+          <button type="button" data-q="5000" aria-pressed="false">5,000</button>
+        </div>
+        <div class="tradebtns">
+          <button class="bb buy" id="buyBtn" type="button">Buy</button>
+          <button class="bb sell" id="sellBtn" type="button">Sell</button>
+          <button class="btn" id="flatBtn" type="button">Flatten</button>
+        </div>
+        <div class="toast" id="toast" aria-live="polite">Market orders hit the same book the AI trades on.</div>
+        <h3 class="sub">Standings</h3>
+        <ol class="stand" id="stand"></ol>
+      </div>
+    </section>
+
+    <section class="panel p-book" aria-label="Order book">
+      <div class="ph"><h2>Order book</h2><small>coloured squares = AI orders resting</small></div>
+      <div class="book" id="book"></div>
+    </section>
+
+    <section class="panel p-tape" aria-label="Time and sales">
+      <div class="ph"><h2>Tape</h2><small>every fill, as it prints</small></div>
+      <ul class="tape" id="tape"></ul>
+    </section>
+  </main>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="Trader detail">
+  <div class="dh"><span class="dot"></span><h2 id="dName">-</h2><button class="x" id="dClose" type="button" aria-label="Close">×</button></div>
+  <div class="db">
+    <p class="voice" id="dVoice"></p>
+    <div class="youstats">
+      <div class="stat"><span>Position</span><b id="dPos">-</b></div>
+      <div class="stat"><span>Cash</span><b id="dCash">-</b></div>
+      <div class="stat"><span>P&amp;L</span><b id="dPnl">-</b></div>
+    </div>
+    <form class="askform" id="askForm" autocomplete="off">
+      <input id="askInput" maxlength="300" placeholder="Ask them anything…" aria-label="Question for this trader">
+      <button class="btn" type="submit" id="askBtn">Ask</button>
+    </form>
+    <div class="answer" id="answer"></div>
+    <h3 class="sub">Lessons they taught themselves</h3>
+    <ol class="lessons" id="dLessons"></ol>
+    <h3 class="sub">Their calls today</h3>
+    <ul class="hist" id="dHist"></ul>
+  </div>
+</aside>
+<script>
+// ===== THE PIT — exchange engine (limit order book + rule-based crowd) =====
+const PIT = (() => {
+  const DT = 0.25, CANDLE = 20; // 250ms ticks, 5s candles
+  const R = Math.random;
+  const gauss = () => { let u = 0, v = 0; while (!u) u = R(); while (!v) v = R(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const r2 = x => Math.round(x * 100) / 100;
+
+  const S = {
+    t: 0, last: 100, open: 100, hi: 100, lo: 100, fv: 100, fvTarget: 100, fvK: 0.03,
+    bids: [], asks: [], seq: 0, trades: [], candles: [], cur: null,
+    halted: 0, haltCool: 0, halts: [], hist: [], accounts: {}, mmInv: {},
+    vwapN: 0, vwapD: 0, pending: [], events: [], volume: 0
+  };
+
+  function acct(o, dq, dc) {
+    const a = S.accounts[o];
+    if (a) { a.sh += dq; a.cash += dc; a.vol += Math.abs(dq); }
+    else if (o.startsWith('mm')) S.mmInv[o] = (S.mmInv[o] || 0) + dq;
+  }
+
+  function trade(buyer, seller, price, q, aggr) {
+    S.last = price;
+    acct(buyer, q, -q * price);
+    acct(seller, -q, q * price);
+    S.trades.unshift({ price, q, aggr, buyer, seller, t: S.t });
+    if (S.trades.length > 80) S.trades.length = 80;
+    const c = S.cur;
+    if (c) { c.h = Math.max(c.h, price); c.l = Math.min(c.l, price); c.c = price; c.v += q; }
+    S.hi = Math.max(S.hi, price); S.lo = Math.min(S.lo, price);
+    S.vwapN += price * q; S.vwapD += q; S.volume += q;
+  }
+
+  function insert(o) {
+    const arr = o.side === 'buy' ? S.bids : S.asks;
+    let i = 0;
+    if (o.side === 'buy') while (i < arr.length && arr[i].price >= o.price) i++;
+    else while (i < arr.length && arr[i].price <= o.price) i++;
+    arr.splice(i, 0, o);
+  }
+
+  function cancel(owner) {
+    S.bids = S.bids.filter(o => o.owner !== owner);
+    S.asks = S.asks.filter(o => o.owner !== owner);
+  }
+
+  // price === null -> market order
+  function submit(owner, side, qty, price) {
+    qty = Math.floor(qty);
+    if (!(qty > 0)) return { filled: 0, avg: 0, rest: 0 };
+    if (price != null) price = r2(price);
+    if (S.halted > 0) { S.pending.push([owner, side, qty, price]); return { filled: 0, avg: 0, rest: qty, queued: true }; }
+    const opp = side === 'buy' ? S.asks : S.bids;
+    let left = qty, filled = 0, notional = 0;
+    while (left > 0 && opp.length) {
+      const b = opp[0];
+      if (price != null && (side === 'buy' ? b.price > price : b.price < price)) break;
+      const q = Math.min(left, b.qty);
+      if (side === 'buy') trade(owner, b.owner, b.price, q, 'buy');
+      else trade(b.owner, owner, b.price, q, 'sell');
+      b.qty -= q; left -= q; filled += q; notional += q * b.price;
+      if (b.qty <= 0) opp.shift();
+    }
+    if (left > 0 && price != null) insert({ id: ++S.seq, owner, side, price, qty: left });
+    return { filled, avg: filled ? notional / filled : 0, rest: price != null ? left : 0 };
+  }
+
+  function newCandle() {
+    const L = S.last;
+    S.cur = { idx: S.candles.length ? S.candles[S.candles.length - 1].idx + 1 : 0, t: S.t, o: L, h: L, l: L, c: L, v: 0 };
+    S.candles.push(S.cur);
+    if (S.candles.length > 900) S.candles.shift();
+  }
+
+  function quoteMM(m, L) {
+    const id = 'mm' + m;
+    cancel(id);
+    const inv = S.mmInv[id] || 0;
+    const ref = L * 0.88 + S.fv * 0.12;
+    const skew = -inv * 0.000003 * L;
+    const half = Math.max(0.02, L * 0.0005 * (1 + m * 0.6));
+    for (let k = 0; k < 4; k++) {
+      const step = half * (1 + k * 1.3);
+      const sz = Math.round(120 + R() * 260);
+      submit(id, 'buy', sz, ref + skew - step);
+      submit(id, 'sell', sz, ref + skew + step);
+    }
+  }
+
+  function crowd() {
+    S.fvTarget *= Math.exp(gauss() * 0.0006);
+    S.fv += (S.fvTarget - S.fv) * S.fvK;
+    // market makers
+    for (let m = 0; m < 4; m++) if (R() < 0.45 || !S.bids.length || !S.asks.length) quoteMM(m, S.last);
+    const L = S.last;
+    // fundamental traders
+    for (let i = 0; i < 22; i++) if (R() < 0.12) {
+      const est = S.fv * (1 + gauss() * 0.012);
+      const gap = (est - S.last) / S.last;
+      if (Math.abs(gap) > 0.003) {
+        const q = Math.round(Math.min(400, 20 + Math.abs(gap) * 8000 * R()));
+        submit('f' + i, gap > 0 ? 'buy' : 'sell', q, null);
+      }
+    }
+    // noise traders
+    for (let i = 0; i < 18; i++) if (R() < 0.08) submit('n' + i, R() < 0.5 ? 'buy' : 'sell', 10 + Math.round(R() * 90), null);
+    // momentum traders
+    const ref = S.hist[Math.max(0, S.hist.length - 40)] || L;
+    const ret = L / ref - 1;
+    for (let i = 0; i < 10; i++) if (R() < 0.08 && Math.abs(ret) > 0.004) submit('m' + i, ret > 0 ? 'buy' : 'sell', 30 + Math.round(R() * 120), null);
+  }
+
+  function halt(dir) {
+    S.halted = 24; S.haltCool = 240;
+    S.bids = []; S.asks = [];
+    S.halts.push({ start: S.cur.idx, end: null, dir, t: S.t });
+    S.events.push({ type: 'halt', dir, t: S.t });
+  }
+
+  function reopen() {
+    const px = r2(S.last * 0.4 + S.fv * 0.6);
+    S.last = px;
+    const c = S.cur; c.c = px; c.h = Math.max(c.h, px); c.l = Math.min(c.l, px);
+    S.hi = Math.max(S.hi, px); S.lo = Math.min(S.lo, px);
+    const h = S.halts[S.halts.length - 1]; if (h) h.end = S.cur.idx;
+    for (let m = 0; m < 4; m++) quoteMM(m, px);
+    S.events.push({ type: 'resume', price: px, t: S.t });
+    const p = S.pending; S.pending = [];
+    p.forEach(a => submit(...a));
+  }
+
+  function tick() {
+    if (S.t % CANDLE === 0) newCandle();
+    if (S.halted > 0) {
+      S.halted--;
+      if (S.halted === 0) reopen();
+      S.hist.push(S.last); if (S.hist.length > 400) S.hist.shift();
+      S.t++;
+      return;
+    }
+    crowd();
+    S.hist.push(S.last); if (S.hist.length > 400) S.hist.shift();
+    if (S.haltCool > 0) S.haltCool--;
+    const ref = S.hist[Math.max(0, S.hist.length - 121)];
+    if (S.haltCool === 0 && S.t > 200 && Math.abs(S.last / ref - 1) > 0.10) halt(S.last > ref ? 'up' : 'down');
+    S.t++;
+  }
+
+  function shock(pct, speed) {
+    pct = Math.max(-45, Math.min(60, pct));
+    S.fvTarget *= 1 + pct / 100;
+    S.fvK = speed === 'fast' ? 0.08 : 0.015;
+  }
+
+  function depth(levels = 8) {
+    const agg = (arr) => { const out = []; for (const o of arr) { const l = out[out.length - 1]; if (l && l.price === o.price) l.qty += o.qty; else { if (out.length === levels) break; out.push({ price: o.price, qty: o.qty }); } } return out; };
+    return { bids: agg(S.bids), asks: agg(S.asks) };
+  }
+
+  const clock = (t = S.t) => { const s = 9 * 3600 + 30 * 60 + Math.floor(t * DT); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = s % 60; return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`; };
+
+  return { S, DT, CANDLE, tick, submit, cancel, shock, depth, clock, r2 };
+})();
+// ===== THE PIT — floor, newsroom and Claude wiring =====
+(() => {
+  const { S, tick, submit, cancel, shock, depth, clock, r2 } = PIT;
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const f2 = x => x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fi = x => Math.round(x).toLocaleString('en-US');
+  const money = x => (x < 0 ? '−$' : '+$') + fi(Math.abs(x));
+  const sgn = x => x > 0 ? 'up' : x < 0 ? 'down' : '';
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  const COMPANY = `Halcyon Dynamics (ticker HLCN) is a mid-cap industrial tech company: grid-scale sodium-ion batteries (about 60% of revenue) and autonomous haul trucks for mines (about 40%). Founded in Perth, listed in the US, about 400 million shares outstanding, thin profits, fast growth, a favourite of retail traders.`;
+
+  const AGENTS = [
+    { id: 'marlowe', name: 'Marlowe', tag: 'Deep value', voice: 'A 30-year value investor. Dry, patient, sounds like an old fund manager. Buys fear and sells euphoria. Cares about cash flow, balance sheet and dilution, ignores noise.' },
+    { id: 'kestrel', name: 'Kestrel', tag: 'Momentum scalper', voice: 'A fast tape-reader. Terse and clipped. Trades the price action and volume, never fights the trend, cuts losers instantly.' },
+    { id: 'juno', name: 'Juno', tag: 'Macro strategist', voice: 'Thinks in second-order effects: rates, supply chains, competitors, regulators, who else is affected. Measured and analytical.' },
+    { id: 'ash', name: 'Ash', tag: 'Contrarian', voice: 'A professional sceptic who fades consensus and overreactions. Sardonic, enjoys being early and alone.' },
+    { id: 'vega', name: 'Vega', tag: 'Risk quant', voice: 'A volatility-targeting quant. Sizes by risk, speaks in probabilities and expected value, cuts exposure when volatility spikes.' },
+    { id: 'pip', name: 'Pip', tag: 'Retail degen', voice: 'A 19-year-old forum trader. Overconfident, chaotic, uses internet trading slang (no emojis). Loves big swings and hates selling.' },
+  ];
+  AGENTS.forEach(a => { a.c = `var(--a-${a.id})`; a.log = []; a.conv = 50; a.lastAct = null; a.thought = ''; a.lessons = []; });
+  // lessons persist in this browser so the traders remember across sessions
+  const LKEY = 'pit.lessons.v1';
+  let career = { rounds: 0 };
+  try { const saved = JSON.parse(localStorage.getItem(LKEY) || 'null'); if (saved) { AGENTS.forEach(a => { a.lessons = (saved.lessons?.[a.id] || []).slice(0, 6); }); career = saved.career || career; } } catch { }
+  const saveLessons = () => { try { localStorage.setItem(LKEY, JSON.stringify({ lessons: Object.fromEntries(AGENTS.map(a => [a.id, a.lessons])), career })); } catch { } };
+  const fills = []; // AI fills drawn on the chart
+  const NAMES = Object.fromEntries(AGENTS.map(a => [a.id, a])); NAMES.you = { id: 'you', name: 'You', c: 'var(--a-you)' };
+
+  const PRESETS = [
+    'Halcyon wins $4B Pentagon contract for battery-backed forward bases',
+    'CFO resigns effective immediately; auditors reviewing Q3 revenue recognition',
+    'Short seller alleges Halcyon double-counted autonomous truck orders',
+    'Chinese rival unveils sodium cell at half Halcyon’s cost',
+    'CEO posts a photo of his dog wearing a Halcyon hard hat',
+  ];
+
+  const news = []; const markers = []; let newsNo = 0;
+  let SAMPLE = null, BUSY = false, CTL = null;
+
+  // ---------- warm-up: a morning of trading before you arrive ----------
+  function addNews(text, impact, read, idx, time) {
+    newsNo++;
+    const n = { no: newsNo, text, impact, read, time, kind: 'news' };
+    news.unshift(n); markers.push({ idx, no: newsNo });
+    return n;
+  }
+  for (let i = 0; i < 3300; i++) {
+    if (i === 1100) { shock(6, 'slow'); addNews('Halcyon raises full-year battery delivery guidance by 12%', 6, 'Guidance raise points to stronger utility demand; margins unchanged.', S.cur.idx, clock()); }
+    if (i === 2350) { shock(-4, 'fast'); addNews('Rival Ferrovolt opens sodium-cell pilot plant in Nevada', -4, 'New domestic competitor; years from scale, but pricing pressure later.', S.cur.idx, clock()); }
+    tick();
+  }
+  news.push({ kind: 'sys', text: 'Opening bell', time: '09:30:00' });
+  AGENTS.forEach(a => { S.accounts[a.id] = { cash: 600000, sh: 4000, vol: 0, start: 600000 + 4000 * S.last }; });
+  S.accounts.you = { cash: 1000000, sh: 0, vol: 0, start: 1000000, cost: 0 };
+  const PRE = {
+    marlowe: 'Guidance raise is real cash flow. I own 4,000 and I am in no hurry.',
+    kestrel: 'Morning trend up, Ferrovolt dip got bought. Flat bias until the tape speaks.',
+    juno: 'Utilities are still under-ordering storage. Ferrovolt is a 2028 problem, not today’s.',
+    ash: 'Everyone loves this name after the guidance bump. That usually ends badly.',
+    vega: 'Realised vol is low. Holding base size, room to add on a clean signal.',
+    pip: 'HLCN to the moon, holding 4k shares and not selling a single one.',
+  };
+  AGENTS.forEach(a => { a.thought = PRE[a.id]; a.log.push({ time: '09:31', head: 'Pre-market note', act: 'HOLD', thought: a.thought }); a.callPx = S.last; a.callPnl = 0; });
+
+  const pnl = id => { const a = S.accounts[id]; return a.cash + a.sh * S.last - a.start; };
+
+  // ---------- render: floor ----------
+  const floor = $('#floor');
+  floor.innerHTML = AGENTS.map(a => `
+    <button class="agent" type="button" data-id="${a.id}" style="--c:${a.c}">
+      <div class="ah"><span class="dot"></span><b>${a.name}</b><span class="tag">${a.tag}</span><span class="pnl num" data-pnl></span></div>
+      <div class="act" data-act></div>
+      <p class="thought" data-th></p>
+      <div class="meta"><span data-pos></span><span>conviction</span><span class="conv"><i data-conv></i></span><span class="lsn" data-lsn></span></div>
+    </button>`).join('');
+  const card = id => floor.querySelector(`[data-id="${id}"]`);
+  const lsnLabel = a => a.lessons.length ? `${a.lessons.length} lesson${a.lessons.length > 1 ? 's' : ''} learned` : '';
+  AGENTS.forEach(a => { card(a.id).querySelector('[data-lsn]').textContent = lsnLabel(a); });
+  function paintAgent(a) {
+    const el = card(a.id);
+    el.querySelector('[data-th]').textContent = a.thought;
+    el.querySelector('[data-conv]').style.width = a.conv + '%';
+    const act = el.querySelector('[data-act]');
+    if (!a.lastAct) act.innerHTML = `<span class="side hold">Pre-market</span>`;
+    else act.innerHTML = `<span class="side ${a.lastAct.side}">${esc(a.lastAct.label)}</span><span class="fill">${esc(a.lastAct.fill || '')}</span>`;
+  }
+  AGENTS.forEach(paintAgent);
+  floor.addEventListener('click', e => { const b = e.target.closest('.agent'); if (b) openDrawer(b.dataset.id); });
+
+  function typeInto(el, text) {
+    clearInterval(el._t); el.textContent = ''; let i = 0;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = text; return; }
+    el._t = setInterval(() => { i += 2; el.textContent = text.slice(0, i); if (i >= text.length) clearInterval(el._t); }, 16);
+  }
+
+  // ---------- render: wire ----------
+  function impChip(n) {
+    if (n.impact == null) return `<span class="imp wait">reading…</span>`;
+    const c = n.impact > 0.4 ? 'pos' : n.impact < -0.4 ? 'neg' : 'flat';
+    return `<span class="imp ${c}">${n.impact > 0 ? '+' : ''}${(+n.impact).toFixed(1)}% fair value</span>`;
+  }
+  function renderWire() {
+    $('#wire').innerHTML = news.slice(0, 40).map(n => n.kind === 'sys'
+      ? `<li class="sys"><span class="tm">${n.time.slice(0, 5)}</span><span class="hl">${esc(n.text)}</span><span></span></li>`
+      : `<li><span class="tm">${n.time.slice(0, 5)}</span><span class="hl">${n.no ? `<span class="no">${n.no}</span>` : ''}${esc(n.text)}</span>${n.kind === 'check' ? '<span class="imp flat">floor check</span>' : impChip(n)}${n.read ? `<span class="rd">${esc(n.read)}</span>` : ''}</li>`).join('');
+  }
+  renderWire();
+  $('#chips').innerHTML = PRESETS.map(p => `<button class="chip" type="button">${esc(p)}</button>`).join('');
+  $('#chips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) breakNews(b.textContent); });
+
+  // ---------- chart ----------
+  const cv = $('#chart'), cx = cv.getContext('2d');
+  let C = null;
+  function colors() { C = { up: css('--up'), down: css('--down'), grid: css('--line'), muted: css('--muted'), amber: css('--amber'), ink: css('--amber-ink'), fg: css('--fg'), faint: css('--faint'), ground: css('--ground'), agent: Object.fromEntries(AGENTS.map(a => [a.id, css('--a-' + a.id)])) }; }
+  function drawChart() {
+    if (!C) colors();
+    const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, W = r.width, H = r.height;
+    if (!W || !H) return;
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, W, H);
+    const padR = 58, padT = 14, padB = 6, volH = Math.round(H * 0.15);
+    const n = Math.max(30, Math.floor((W - padR) / 8));
+    const cs = S.candles.slice(-n);
+    const plotH = H - padT - volH - padB - 8;
+    let lo = Infinity, hi = -Infinity, vmax = 1;
+    cs.forEach(c => { lo = Math.min(lo, c.l); hi = Math.max(hi, c.h); vmax = Math.max(vmax, c.v); });
+    const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
+    const y = p => padT + (hi - p) / (hi - lo) * plotH;
+    const cw = (W - padR) / n, x0 = (n - cs.length) * cw;
+    const idx0 = cs.length ? cs[0].idx : 0;
+    // halts
+    S.halts.forEach(h => {
+      const a = h.start - idx0, b = (h.end ?? S.cur.idx) - idx0 + 1;
+      if (b < 0 || a > cs.length) return;
+      cx.fillStyle = C.amber; cx.globalAlpha = .1;
+      cx.fillRect(x0 + Math.max(0, a) * cw, padT, (Math.min(cs.length, b) - Math.max(0, a)) * cw, plotH); cx.globalAlpha = 1;
+    });
+    // grid
+    const span = hi - lo, raw = span / 5, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(k => k * mag).find(s => s >= raw);
+    cx.font = '500 11px "IBM Plex Mono", monospace'; cx.textBaseline = 'middle';
+    for (let p = Math.ceil(lo / step) * step; p <= hi; p += step) {
+      const yy = Math.round(y(p)) + .5;
+      cx.strokeStyle = C.grid; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(0, yy); cx.lineTo(W - padR, yy); cx.stroke();
+      cx.fillStyle = C.muted; cx.fillText(f2(p), W - padR + 8, yy);
+    }
+    // candles + volume
+    const bw = Math.max(1, cw * 0.62);
+    cs.forEach((c, i) => {
+      const xc = x0 + i * cw + cw / 2, col = c.c >= c.o ? C.up : C.down;
+      cx.strokeStyle = col; cx.fillStyle = col;
+      cx.beginPath(); cx.moveTo(Math.round(xc) + .5, y(c.h)); cx.lineTo(Math.round(xc) + .5, y(c.l)); cx.stroke();
+      const top = y(Math.max(c.o, c.c)), bh = Math.max(1, Math.abs(y(c.o) - y(c.c)));
+      cx.fillRect(xc - bw / 2, top, bw, bh);
+      const vh = c.v / vmax * volH; cx.globalAlpha = .35; cx.fillRect(xc - bw / 2, H - padB - vh, bw, vh); cx.globalAlpha = 1;
+    });
+    // headline markers
+    markers.forEach(m => {
+      const i = m.idx - idx0; if (i < 0 || i >= cs.length) return;
+      const xc = Math.round(x0 + i * cw + cw / 2) + .5;
+      cx.strokeStyle = C.amber; cx.setLineDash([3, 3]); cx.beginPath(); cx.moveTo(xc, padT + 14); cx.lineTo(xc, padT + plotH); cx.stroke(); cx.setLineDash([]);
+      cx.fillStyle = C.amber; const lab = String(m.no), tw = cx.measureText(lab).width + 8;
+      cx.fillRect(xc - tw / 2, padT - 2, tw, 15); cx.fillStyle = C.ink; cx.textAlign = 'center'; cx.fillText(lab, xc, padT + 6); cx.textAlign = 'left';
+    });
+    // AI trader fills: triangles in the trader's colour (up = bought, down = sold)
+    fills.forEach(f => {
+      const i = f.idx - idx0; if (i < 0 || i >= cs.length) return;
+      const xc = x0 + i * cw + cw / 2, yy = y(f.px), s = 6, dir = f.side === 'buy' ? 1 : -1;
+      cx.fillStyle = f.col; cx.strokeStyle = C.ground; cx.lineWidth = 1.5;
+      cx.beginPath(); cx.moveTo(xc, yy - dir * s); cx.lineTo(xc - s, yy + dir * s * .7); cx.lineTo(xc + s, yy + dir * s * .7); cx.closePath(); cx.stroke(); cx.fill();
+    });
+    cx.lineWidth = 1;
+    // last price tag
+    const ly = Math.round(y(S.last)) + .5, lc = S.last >= S.open ? C.up : C.down;
+    cx.strokeStyle = lc; cx.setLineDash([2, 3]); cx.beginPath(); cx.moveTo(0, ly); cx.lineTo(W - padR, ly); cx.stroke(); cx.setLineDash([]);
+    cx.fillStyle = lc; cx.fillRect(W - padR + 2, ly - 9, padR - 4, 18);
+    cx.fillStyle = C.ink; cx.font = '600 11px "IBM Plex Mono", monospace'; cx.fillText(f2(S.last), W - padR + 7, ly + 1);
+  }
+  addEventListener('resize', drawChart);
+  document.fonts?.ready.then(drawChart);
+
+  // ---------- book & tape ----------
+  function renderBook() {
+    const d = depth(8), mx = Math.max(1, ...d.bids.map(l => l.qty), ...d.asks.map(l => l.qty));
+    const whoAt = (arr, p) => [...new Set(arr.filter(o => o.price === p && (NAMES[o.owner])).map(o => o.owner))];
+    const row = (l, side) => `<div class="lvl ${side}"><span class="bar" style="width:${(l.qty / mx * 100).toFixed(1)}%"></span><span class="who">${whoAt(side === 'bid' ? S.bids : S.asks, l.price).map(o => `<i style="background:${NAMES[o].c}" title="${NAMES[o].name}"></i>`).join('')}</span><span class="p">${f2(l.price)}</span><span>${fi(l.qty)}</span></div>`;
+    const ba = d.asks[0]?.price, bb = d.bids[0]?.price;
+    $('#book').innerHTML = `<div class="colh"><span></span><span>Price</span><span>Size</span></div>` +
+      (S.halted ? `<div class="spread"><span>Book cleared · halted</span></div>` :
+        d.asks.slice().reverse().map(l => row(l, 'ask')).join('') +
+        `<div class="spread"><span>Spread ${ba && bb ? f2(ba - bb) : '-'}</span><span>Mid ${ba && bb ? f2((ba + bb) / 2) : '-'}</span></div>` +
+        d.bids.map(l => row(l, 'bid')).join(''));
+  }
+  function renderTape() {
+    $('#tape').innerHTML = S.trades.slice(0, 18).map(t => {
+      const who = NAMES[t.buyer] ? `${NAMES[t.buyer].name} bought` : NAMES[t.seller] ? `${NAMES[t.seller].name} sold` : '';
+      const wc = NAMES[t.buyer]?.c || NAMES[t.seller]?.c || '';
+      return `<li class="${t.q >= 1000 ? 'big' : ''}"><span class="tt">${clock(t.t)}</span><span class="${t.aggr === 'buy' ? 'up' : 'down'}">${f2(t.price)}</span><span class="q">${fi(t.q)}</span><span class="who" style="color:${wc}">${who}</span></li>`;
+    }).join('');
+  }
+
+  // ---------- header, standings, you ----------
+  function renderTop() {
+    const ch = S.last - S.open;
+    $('#px').textContent = f2(S.last); $('#px').className = 'px num ' + sgn(ch);
+    $('#chg').textContent = `${ch >= 0 ? '+' : '−'}${f2(Math.abs(ch))} (${ch >= 0 ? '+' : '−'}${f2(Math.abs(ch / S.open * 100))}%)`;
+    $('#chg').className = 'chg ' + sgn(ch);
+    $('#sClock').textContent = clock(); $('#sOpen').textContent = f2(S.open);
+    $('#sHigh').textContent = f2(S.hi); $('#sLow').textContent = f2(S.lo);
+    $('#sVwap').textContent = S.vwapD ? f2(S.vwapN / S.vwapD) : '-';
+    $('#sVol').textContent = S.volume > 1e6 ? (S.volume / 1e6).toFixed(2) + 'M' : fi(S.volume);
+    const m = $('#mkt');
+    if (S.halted) { m.className = 'pill halt'; m.lastChild.textContent = 'Halted'; } else { m.className = 'pill live'; m.lastChild.textContent = 'Market open'; }
+  }
+  function renderStand() {
+    const rows = [...AGENTS.map(a => ({ id: a.id, name: a.name, c: a.c })), { id: 'you', name: 'You', c: 'var(--a-you)' }]
+      .map(r => ({ ...r, p: pnl(r.id) })).sort((a, b) => b.p - a.p);
+    $('#stand').innerHTML = rows.map((r, i) => `<li class="${r.id === 'you' ? 'me' : ''}" style="--c:${r.c}"><span class="rk">${i + 1}</span><i></i><span>${r.name}</span><span class="${sgn(r.p)}">${money(r.p)}</span></li>`).join('');
+    AGENTS.forEach(a => {
+      const el = card(a.id), p = pnl(a.id);
+      const pe = el.querySelector('[data-pnl]'); pe.textContent = money(p); pe.className = 'pnl num ' + sgn(p);
+      el.querySelector('[data-pos]').textContent = `${fi(S.accounts[a.id].sh)} sh`;
+    });
+    const y = S.accounts.you, yp = pnl('you');
+    $('#yPos').textContent = fi(y.sh); $('#yAvg').textContent = y.sh ? f2(Math.abs(y.cost / y.sh)) : '-';
+    $('#yPnl').textContent = money(yp); $('#yPnl').className = sgn(yp);
+  }
+
+  // ---------- engine events ----------
+  let evSeen = 0;
+  function processEvents() {
+    while (evSeen < S.events.length) {
+      const e = S.events[evSeen++];
+      if (e.type === 'halt') {
+        news.unshift({ kind: 'sys', time: clock(e.t), text: `Circuit breaker: limit ${e.dir}, trading halted` });
+        sfx.halt(); $('#haltTitle').textContent = `Limit ${e.dir}`; $('#haltBanner').hidden = false;
+        document.body.classList.remove('shake-up', 'shake-down'); void document.body.offsetWidth; document.body.classList.add(e.dir === 'up' ? 'shake-up' : 'shake-down');
+      } else if (e.type === 'resume') {
+        news.unshift({ kind: 'sys', time: clock(e.t), text: `Trading resumes at ${f2(e.price)}` });
+        $('#haltBanner').hidden = true;
+        AGENTS.forEach(a => { if (a.lastAct?.queued) { a.lastAct.fill = 'released at reopen'; a.lastAct.queued = false; paintAgent(a); } });
+      }
+      renderWire();
+    }
+    if (S.halted) $('#haltSub').textContent = `Circuit breaker · reopens in ${Math.ceil(S.halted * PIT.DT)}s`;
+  }
+
+  // ---------- sound (off until the viewer turns it on) ----------
+  const sfx = (() => {
+    let ac = null, on = false;
+    const tone = (f, t, dur, type = 'sine', vol = .12, f2 = null) => {
+      if (!on || !ac) return; const o = ac.createOscillator(), g = ac.createGain(), t0 = ac.currentTime + t;
+      o.type = type; o.frequency.setValueAtTime(f, t0); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t0 + dur);
+      g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+      o.connect(g).connect(ac.destination); o.start(t0); o.stop(t0 + dur + .05);
+    };
+    return {
+      toggle() { on = !on; if (on && !ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { on = false; } } ac?.resume?.(); return on; },
+      bell() { [0, .18, .36].forEach(t => { tone(1318, t, .9, 'sine', .09); tone(2637, t, .5, 'sine', .03); }); },
+      halt() { tone(220, 0, .5, 'square', .05, 110); tone(220, .55, .5, 'square', .05, 110); },
+      fill(side) { tone(side === 'buy' ? 880 : 440, 0, .12, 'triangle', .07); },
+      chat() { tone(1600, 0, .05, 'sine', .03); },
+    };
+  })();
+  $('#soundBtn').onclick = () => { const on = sfx.toggle(); $('#soundBtn').textContent = on ? 'Sound on' : 'Sound off'; $('#soundBtn').setAttribute('aria-pressed', on); if (on) sfx.chat(); };
+
+  function addChatter(o) {
+    const a = NAMES[o.id], b = NAMES[o.to]; if (!a || !o.line) return;
+    const box = $('#chatter'); box.hidden = false;
+    const li = document.createElement('li');
+    li.innerHTML = `<b style="color:${a.c}">${esc(a.name)}</b>${b ? `<span class="to">to <b style="color:${b.c}">${esc(b.name)}</b></span>` : ''}<span class="ln"></span>`;
+    box.prepend(li); while (box.children.length > 4) box.lastChild.remove();
+    typeInto(li.querySelector('.ln'), String(o.line).slice(0, 200)); sfx.chat();
+    return new Promise(r => setTimeout(r, 900));
+  }
+
+  // ---------- main loop ----------
+  let frame = 0, speed = 1;
+  $('#speed').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; speed = +b.dataset.s; $('#speed').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+  setInterval(() => {
+    if (!speed) return;
+    for (let k = 0; k < speed; k++) tick(); frame++;
+    processEvents();
+    renderTop(); drawChart();
+    if (frame % 2 === 0) { renderBook(); renderTape(); renderStand(); }
+  }, 250);
+  renderTop(); renderBook(); renderTape(); renderStand(); drawChart();
+
+  // ---------- trading helpers ----------
+  // cost basis of the open position (signed), adjusted after the fill has already changed a.sh
+  function trackCost(id, side, res) {
+    const a = S.accounts[id]; if (!a || !('cost' in a) || !res.filled) return;
+    const d = side === 'buy' ? res.filled : -res.filled, after = a.sh, before = after - d;
+    if (before === 0 || Math.sign(before) === Math.sign(d)) a.cost += d * res.avg;          // opening / adding
+    else if (Math.sign(after) === Math.sign(before)) a.cost *= after / before;              // reducing
+    else a.cost = after * res.avg;                                                           // flipped through zero
+  }
+  function execAgent(a, d, headline) {
+    const el = card(a.id);
+    cancel(a.id);
+    let side = String(d.action || 'hold').toLowerCase();
+    let qty = Math.max(0, Math.min(6000, Math.round(+d.qty || 0)));
+    const pos = S.accounts[a.id].sh;
+    if (side === 'sell') qty = Math.min(qty, pos + 12000);
+    if (side === 'buy') qty = Math.min(qty, 12000 - pos);
+    if (!['buy', 'sell'].includes(side) || qty <= 0) side = 'hold';
+    let label = 'HOLD', fill = '';
+    let lim = d.order === 'limit' && +d.limit > 0 ? r2(+d.limit) : null;
+    if (lim && Math.abs(lim / S.last - 1) > 0.3) lim = null;
+    let queued = false, avgFill = null;
+    if (side !== 'hold') {
+      let res = submit(a.id, side, qty, lim);
+      if (!lim && !res.queued && res.filled < qty) {          // thin book: park the rest just through the last print
+        const px = r2(S.last * (side === 'buy' ? 1.004 : 0.996));
+        const r2nd = submit(a.id, side, qty - res.filled, px);
+        res = { filled: res.filled + r2nd.filled, avg: (res.filled * res.avg + r2nd.filled * r2nd.avg) / Math.max(1, res.filled + r2nd.filled), rest: r2nd.rest };
+      }
+      queued = !!res.queued; if (res.filled) avgFill = res.avg;
+      label = `${side.toUpperCase()} ${fi(qty)} · ${lim ? 'LMT ' + f2(lim) : 'MKT'}`;
+      fill = queued ? 'queued for reopen' : res.filled ? `filled ${fi(res.filled)} @ ${f2(res.avg)}${res.rest ? ` · ${fi(res.rest)} resting` : ''}` : res.rest ? 'resting on the book' : 'no liquidity';
+    }
+    if (avgFill) {
+      if (!C) colors();
+      fills.push({ idx: S.cur.idx, px: avgFill, side, col: C.agent[a.id] }); if (fills.length > 200) fills.shift();
+      sfx.fill(side);
+    }
+    const lesson = String(d.lesson || '').trim();
+    if (lesson && lesson.length > 6) {
+      a.lessons.unshift(lesson.slice(0, 140)); a.lessons.length = Math.min(a.lessons.length, 6);
+      const ls = card(a.id).querySelector('[data-lsn]'); ls.textContent = 'New lesson'; ls.classList.add('new');
+      setTimeout(() => { ls.textContent = lsnLabel(a); ls.classList.remove('new'); }, 4000);
+      saveLessons();
+    }
+    a.callPx = S.last; a.callPnl = pnl(a.id);
+    a.lastAct = { side, label, fill, queued };
+    a.conv = Math.max(0, Math.min(100, +d.conviction || 50));
+    a.thought = String(d.thought || '').slice(0, 260) || '…';
+    a.log.unshift({ time: clock().slice(0, 5), head: headline || 'Floor check', act: label, thought: a.thought });
+    el.classList.remove('thinking'); paintAgent(a); typeInto(el.querySelector('[data-th]'), a.thought);
+    el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1600);
+  }
+
+  // ---------- Claude ----------
+  const setAI = (txt, on) => { const p = $('#ai'); p.className = 'pill ' + (on ? 'ai' : 'off'); p.lastChild.textContent = txt; };
+  (async () => {
+    try { SAMPLE = window.claude?.use ? await window.claude.use('sample') : null; } catch { SAMPLE = null; }
+    setAI(SAMPLE ? 'Claude on the floor' : 'Offline sim (no Claude)', !!SAMPLE);
+  })();
+  const DEAD = ['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed', 'session_expired'];
+  const errCopy = c => ({
+    not_granted: 'Claude access was declined, so the traders are running on simple offline rules.',
+    rate_limited: 'Claude is rate-limited right now. Offline rules took this one; try again in a minute.',
+    session_expired: 'Your Claude session expired. Sign in again to bring the AI traders back.',
+    refused: 'Claude declined that headline. Offline rules handled it instead.',
+  }[c] || 'Claude could not answer that one, so offline rules handled it.');
+
+  function brief() {
+    const cs = S.candles.slice(-24).map(c => c.c.toFixed(2)).join(', ');
+    const d = depth(1);
+    const recent = news.filter(n => n.kind !== 'sys').slice(0, 5).map(n => `[${n.time.slice(0, 5)}] ${n.kind === 'check' ? 'floor check' : `"${n.text}" (desk impact ${n.impact ?? '?'}%)`}`).join('\n') || 'none';
+    return `Simulated time ${clock()}. Last $${f2(S.last)}, session open $${f2(S.open)} (${((S.last / S.open - 1) * 100).toFixed(2)}%), high ${f2(S.hi)}, low ${f2(S.lo)}, VWAP ${f2(S.vwapN / S.vwapD)}.
+Best bid ${d.bids[0] ? f2(d.bids[0].price) : 'none'}, best ask ${d.asks[0] ? f2(d.asks[0].price) : 'none'}. Typical displayed depth is only a few thousand shares, so a 5,000-share market order moves the price noticeably.
+${S.halted ? 'TRADING IS CURRENTLY HALTED by a circuit breaker; orders queue for the reopen.\n' : ''}Last 24 five-second closes, oldest first: ${cs}
+Recent headlines, newest first:
+${recent}`;
+  }
+  function book(a) {
+    const ac = S.accounts[a.id], last = a.log[0];
+    return `- id "${a.id}" | ${a.name}, ${a.tag}: ${a.voice}
+  Now holds ${fi(ac.sh)} shares and $${fi(ac.cash)} cash; P&L ${money(pnl(a.id))}. Their last call: ${last ? `${last.act} ("${last.thought}")` : 'none'}
+  How that call has worked out: price ${f2(a.callPx)} then, ${f2(S.last)} now; their P&L moved ${money(pnl(a.id) - a.callPnl)} since.
+  Lessons they wrote for themselves (newest first): ${a.lessons.length ? a.lessons.map((l, i) => `${i + 1}) ${l}`).join(' ') : 'none yet'}`;
+  }
+  function tradePrompt(headline) {
+    return `You are the simulation engine for THE PIT, a live simulated stock exchange. You voice six independent AI traders who each decide what to do on their own. They have different temperaments and should often disagree. This is a fictional market game; no real money.
+
+THE COMPANY
+${COMPANY}
+
+THE MARKET RIGHT NOW
+${brief()}
+
+${headline ? `BREAKING HEADLINE: "${headline}"` : 'NO NEW HEADLINE. This is a floor check: each trader reviews the tape, recent headlines and their own position and decides whether to act.'}
+
+THE TRADERS
+${AGENTS.map(book).join('\n')}
+
+Each trader may buy or sell up to 6000 shares this round. Positions must stay between -12000 and +12000 shares. Market orders fill now against the book; limit orders rest at their price until hit.
+
+OUTPUT: JSON Lines only. No prose, no code fences, exactly 9 lines.
+Line 1: {"type":"desk","impact":<number, the % change this news should make to HLCN fair value, from -45 to 60, use 0 for a floor check>,"speed":"fast" or "slow","read":"<one sentence: the newsroom analyst's read of what this means for Halcyon>"}
+Then one line per trader, in this order: marlowe, kestrel, juno, ash, vega, pip:
+{"type":"trade","id":"<id>","action":"buy" or "sell" or "hold","qty":<integer 0-6000>,"order":"market" or "limit","limit":<price or null>,"conviction":<0-100>,"thought":"<at most 28 words, first person, in that trader's own voice, specific to this headline and their own position>","lesson":"<at most 16 words: a rule this trader takes from how their PREVIOUS call worked out, or an empty string if nothing new was learned>"}
+Then 2 lines of floor chatter, traders needling each other by name about their actual positions and P&L:
+{"type":"chatter","id":"<speaker id>","to":"<target id>","line":"<at most 18 words, in the speaker's voice>"}
+
+Judge impact like a real analyst, scaled to how material the news is to cash flow, dilution, legal risk or survival. Trivial or absurd news is near 0, though traders can still react in character. Unconfirmed allegations move less than confirmed facts. Traders should remember their own last call and current P&L, and actually follow the lessons they have written, unless this situation is genuinely different. A trader who keeps losing should adapt.`;
+  }
+
+  // offline fallback so the floor still works without Claude
+  function offline(headline) {
+    const t = (headline || '').toLowerCase();
+    const pos = ['win', 'wins', 'contract', 'beat', 'record', 'raise', 'approv', 'partner', 'acquire', 'surge', 'breakthrough', 'upgrade', 'buyback', 'profit', 'deal', 'growth'];
+    const neg = ['resign', 'fraud', 'short seller', 'alleg', 'investigat', 'recall', 'lawsuit', 'miss', 'cut', 'downgrade', 'fire', 'explo', 'ban', 'loss', 'probe', 'delay', 'rival', 'half', 'audit', 'bankrupt', 'crash'];
+    let s = 0; pos.forEach(w => t.includes(w) && (s += 1)); neg.forEach(w => t.includes(w) && (s -= 1.3));
+    const impact = headline ? Math.max(-30, Math.min(30, s * 6 + (Math.random() - .5) * 2)) : 0;
+    const dir = Math.sign(impact) || (S.last >= S.open ? 1 : -1);
+    const mag = Math.min(1, Math.abs(impact) / 20);
+    const B = dir > 0 ? 'buy' : 'sell', X = dir > 0 ? 'sell' : 'buy';
+    const plan = {
+      marlowe: impact < -6 ? ['buy', 3000, 'Panic is a price. I buy what others are forced to sell.'] : impact > 8 ? ['sell', 1500, 'Euphoria. Trimming into strength, the business did not change that much.'] : ['hold', 0, 'Nothing here changes intrinsic value. Patience.'],
+      kestrel: [B, Math.round(1000 + 3000 * mag), dir > 0 ? 'Tape is lifting. Going with it, stop under the last low.' : 'Bids are thin and falling. Short side, tight stop.'],
+      juno: [Math.abs(impact) > 3 ? B : 'hold', Math.round(2000 * mag), 'Second-order read agrees with the first, sizing moderately.'],
+      ash: [Math.abs(impact) > 4 ? X : 'hold', Math.round(1500 + 1500 * mag), 'Consensus piles in one direction. I take the other side.'],
+      vega: [Math.abs(impact) > 10 ? 'sell' : B, Math.abs(impact) > 10 ? 1000 : 600, Math.abs(impact) > 10 ? 'Vol just spiked. Cutting gross exposure.' : 'Small edge, small size.'],
+      pip: [B, Math.round(2000 + 4000 * mag), dir > 0 ? 'LETS GO. Sending it, max size.' : 'This is a gift dip... wait no, everyone is selling. Out.'],
+    };
+    return { desk: { impact: +impact.toFixed(1), speed: Math.abs(impact) > 10 ? 'fast' : 'slow', read: headline ? 'Offline keyword read (Claude not connected).' : 'Floor check on offline rules.' }, trades: AGENTS.map(a => ({ id: a.id, action: plan[a.id][0], qty: plan[a.id][1], order: 'market', conviction: 40 + Math.round(mag * 50), thought: plan[a.id][2] })) };
+  }
+
+  function setBusy(b, msg) {
+    BUSY = b;
+    ['#breakBtn', '#surpriseBtn', '#checkBtn', '#wrapBtn'].forEach(s => $(s).disabled = b);
+    $('#chips').querySelectorAll('button').forEach(x => x.disabled = b);
+    const st = $('#status'); st.textContent = msg || ''; st.classList.toggle('busy', b);
+  }
+
+  async function breakNews(text) {
+    text = (text || '').trim();
+    if (BUSY) return;
+    const isCheck = !text;
+    setBusy(true, isCheck ? 'Floor check: traders are reviewing their books…' : 'Claude is reading the headline…');
+    const item = isCheck ? { kind: 'check', time: clock(), text: 'Floor check: traders reassess', read: '' } : { kind: 'news', no: ++newsNo, time: clock(), text, impact: null, read: '' };
+    news.unshift(item);
+    if (!isCheck) { markers.push({ idx: S.cur.idx, no: item.no }); sfx.bell(); }
+    career.rounds++; saveLessons();
+    renderWire();
+    const done = new Set();
+    AGENTS.forEach(a => { const el = card(a.id); el.classList.add('thinking'); el.querySelector('[data-th]').textContent = isCheck ? 'Reviewing…' : 'Reading the headline…'; });
+
+    const applyDesk = d => {
+      if (isCheck) { item.read = String(d.read || ''); renderWire(); return; }
+      const imp = Math.max(-45, Math.min(60, +d.impact || 0));
+      item.impact = +imp.toFixed(1); item.read = String(d.read || '');
+      shock(imp, d.speed === 'fast' ? 'fast' : 'slow');
+      renderWire();
+      if (Math.abs(imp) >= 8) { document.body.classList.remove('shake-up', 'shake-down'); void document.body.offsetWidth; document.body.classList.add(imp > 0 ? 'shake-up' : 'shake-down'); }
+      $('#status').textContent = 'Desk has read it. Traders are deciding…';
+    };
+    // traders act one after another, ~0.7s apart, so the market makers can refill between them
+    let chain = Promise.resolve();
+    const applyTrade = d => {
+      const a = NAMES[d.id]; if (!a || !AGENTS.includes(a) || done.has(a.id)) return; done.add(a.id);
+      chain = chain.then(() => { execAgent(a, d, isCheck ? null : text); return new Promise(r => setTimeout(r, 700)); });
+    };
+    const handle = line => {
+      line = line.trim().replace(/^```\w*|```$/g, '').replace(/,\s*$/, '');
+      if (!line.startsWith('{')) return;
+      let o; try { o = JSON.parse(line); } catch { return; }
+      if (o.type === 'desk') applyDesk(o);
+      else if (o.type === 'chatter') chain = chain.then(() => addChatter(o));
+      else if (o.type === 'trade' || o.id) applyTrade(o);
+    };
+
+    let note = '';
+    let gotDesk = false;
+    if (SAMPLE) {
+      CTL = new AbortController();
+      let pending = '';
+      const wrapped = l => { const t = l.trim(); if (t.includes('"desk"')) gotDesk = true; handle(t); };
+      try {
+        await SAMPLE(tradePrompt(isCheck ? null : text), {
+          modelTier: $('#deep').checked ? 'default' : 'quick', cache: false, signal: CTL.signal,
+          onText: ({ delta }) => { const ls = (pending + delta).split('\n'); pending = ls.pop(); ls.forEach(wrapped); },
+        });
+        if (pending.trim()) wrapped(pending);
+      } catch (e) {
+        if (pending.trim()) wrapped(pending);
+        if (DEAD.includes(e?.code)) { SAMPLE = null; setAI('Offline sim (no Claude)', false); }
+        if (e?.code !== 'cancelled') note = errCopy(e?.code);
+      }
+    } else note = 'Claude is not connected here, so the traders ran on offline rules.';
+
+    if (!gotDesk || done.size < AGENTS.length) {
+      const o = offline(isCheck ? null : text);
+      if (!gotDesk) applyDesk(o.desk);
+      o.trades.forEach(t => { if (!done.has(t.id)) applyTrade(t); });
+    }
+    await chain;
+    setBusy(false, note);
+  }
+
+  $('#newsForm').addEventListener('submit', e => { e.preventDefault(); const v = $('#headline').value; if (!v.trim()) { $('#headline').focus(); return; } $('#headline').value = ''; breakNews(v); });
+  $('#checkBtn').onclick = () => breakNews('');
+
+  $('#surpriseBtn').onclick = async () => {
+    if (BUSY) return;
+    if (!SAMPLE) { $('#status').textContent = 'Claude is not connected here. Type a headline or pick one above.'; return; }
+    setBusy(true, 'Claude is writing a headline…');
+    let h = '';
+    try {
+      const prev = news.filter(n => n.kind === 'news').slice(0, 8).map(n => '- ' + n.text).join('\n');
+      const r = await SAMPLE.json(`${COMPANY}\nThe stock is at $${f2(S.last)} (${((S.last / S.open - 1) * 100).toFixed(1)}% today).\nHeadlines already published today:\n${prev}\n\nWrite ONE new breaking financial-wire headline about Halcyon Dynamics or its world that would make this simulated market interesting. Vary it: it could be very good, very bad, ambiguous, a rumour, a macro shock, a twist on an earlier headline, or something absurd. At most 16 words, wire style. Reply with only JSON: {"headline":"..."}`, { modelTier: 'quick', cache: false });
+      h = String(r?.headline || '').trim();
+    } catch (e) { if (DEAD.includes(e?.code)) { SAMPLE = null; setAI('Offline sim (no Claude)', false); } }
+    setBusy(false, h ? '' : 'Claude could not write a headline just now. Type one instead.');
+    if (h) breakNews(h);
+  };
+
+  $('#wrapBtn').onclick = async () => {
+    if (BUSY) return;
+    const box = $('#wrap'), out = $('#wrapText'); box.hidden = false;
+    if (!SAMPLE) { out.textContent = 'The market wrap needs Claude, which is not connected in this view.'; return; }
+    setBusy(true, 'Claude is writing the wrap…'); out.textContent = 'Writing…';
+    const board = [...AGENTS.map(a => `${a.name} (${a.tag}): P&L ${money(pnl(a.id))}, holds ${fi(S.accounts[a.id].sh)} sh, last call ${a.log[0]?.act}`), `The human player: P&L ${money(pnl('you'))}, holds ${fi(S.accounts.you.sh)} sh`].join('\n');
+    const halts = S.halts.length ? `${S.halts.length} circuit-breaker halt(s) today.` : 'No halts today.';
+    try {
+      await SAMPLE(`You are a sharp financial wire reporter. Write a market wrap for HLCN (Halcyon Dynamics) on this simulated exchange, about 130 words, in plain paragraphs (no headers, no bullet points, no markdown). Cite specific prices and moves, explain which headlines moved the stock and why, name which AI traders won and lost and what that says about their styles, mention the human player if they traded, and end with one line on what to watch next.\n\n${COMPANY}\n\n${brief()}\n${halts}\n\nTrader standings:\n${board}`,
+        { modelTier: 'quick', cache: false, onText: ({ text }) => { out.textContent = text; } });
+      setBusy(false, '');
+    } catch (e) {
+      if (e?.text) out.textContent = e.text; else out.textContent = '';
+      if (DEAD.includes(e?.code)) { SAMPLE = null; setAI('Offline sim (no Claude)', false); }
+      setBusy(false, e?.code === 'cancelled' ? '' : 'The wrap could not be finished. Try again in a moment.');
+      if (!out.textContent) box.hidden = true;
+    }
+  };
+
+  // ---------- your seat ----------
+  let size = 500;
+  $('#sizes').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; size = +b.dataset.q; $('#sizes').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+  function youTrade(side, q) {
+    const before = S.last;
+    const res = submit('you', side, q, null);
+    trackCost('you', side, res);
+    const y = S.accounts.you; if (y.sh === 0) y.cost = 0;
+    $('#toast').textContent = res.queued ? `Halted: your ${side} of ${fi(q)} is queued for the reopen.` :
+      res.filled ? `${side === 'buy' ? 'Bought' : 'Sold'} ${fi(res.filled)} @ ${f2(res.avg)} avg · moved the price ${f2(S.last - before)}${res.filled < q ? ` · ${fi(q - res.filled)} unfilled (book too thin)` : ''}` : 'No liquidity on that side right now.';
+    renderStand(); renderBook(); renderTape();
+  }
+  $('#buyBtn').onclick = () => youTrade('buy', size);
+  $('#sellBtn').onclick = () => youTrade('sell', size);
+  $('#flatBtn').onclick = () => { const s = S.accounts.you.sh; if (!s) { $('#toast').textContent = 'You are already flat.'; return; } youTrade(s > 0 ? 'sell' : 'buy', Math.abs(s)); };
+
+  // ---------- trader drawer ----------
+  let open = null, askCtl = null;
+  function paintDrawer() {
+    const a = open; if (!a) return; const ac = S.accounts[a.id], p = pnl(a.id);
+    $('#drawer').style.setProperty('--c', a.c);
+    $('#dName').textContent = a.name; $('#dVoice').textContent = `${a.tag}. ${a.voice}`;
+    $('#dPos').textContent = fi(ac.sh) + ' sh'; $('#dCash').textContent = '$' + fi(ac.cash);
+    $('#dPnl').textContent = money(p); $('#dPnl').className = sgn(p);
+    $('#dLessons').innerHTML = a.lessons.length ? a.lessons.map(l => `<li>${esc(l)}</li>`).join('') : '<li class="none">None yet. They write one after seeing how a call worked out.</li>';
+    $('#dHist').innerHTML = a.log.slice(0, 12).map(l => `<li><span class="hh">${l.time} · ${esc(l.head)} · ${esc(l.act)}</span><span>${esc(l.thought)}</span></li>`).join('');
+    $('#askInput').placeholder = SAMPLE ? `Ask ${a.name} anything…` : 'Needs Claude, which is not connected here';
+    $('#askBtn').disabled = !SAMPLE;
+  }
+  function openDrawer(id) {
+    open = NAMES[id]; $('#answer').textContent = ''; paintDrawer();
+    $('#drawer').hidden = false; $('#scrim').hidden = false; $('#askInput').focus();
+  }
+  function closeDrawer() { askCtl?.abort(); open = null; $('#drawer').hidden = true; $('#scrim').hidden = true; }
+  $('#dClose').onclick = closeDrawer; $('#scrim').onclick = closeDrawer;
+  addEventListener('keydown', e => { if (e.key === 'Escape' && open) closeDrawer(); });
+  setInterval(() => { if (open) { const ac = S.accounts[open.id], p = pnl(open.id); $('#dPos').textContent = fi(ac.sh) + ' sh'; $('#dCash').textContent = '$' + fi(ac.cash); $('#dPnl').textContent = money(p); $('#dPnl').className = sgn(p); } }, 500);
+  $('#askForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const q = $('#askInput').value.trim(), a = open; if (!q || !a || !SAMPLE) return;
+    $('#askInput').value = ''; const out = $('#answer'); out.textContent = 'Thinking…';
+    askCtl?.abort(); askCtl = new AbortController(); $('#askBtn').disabled = true;
+    try {
+      await SAMPLE(`You are ${a.name}, an AI trader on THE PIT, a simulated stock exchange trading only HLCN. Personality: ${a.voice}\n\n${COMPANY}\n\nMarket now:\n${brief()}\n\nYour position: ${fi(S.accounts[a.id].sh)} shares, $${fi(S.accounts[a.id].cash)} cash, P&L ${money(pnl(a.id))} today.\nRules you have taught yourself: ${a.lessons.join(' | ') || 'none yet'}\nYour calls today, newest first:\n${a.log.slice(0, 8).map(l => `${l.time} on "${l.head}": ${l.act}. Said: ${l.thought}`).join('\n')}\n\nA person on the floor asks you: "${q}"\n\nAnswer in character, first person, 2 to 4 sentences, plain text. Be specific about your trades and reasoning. Stay in this fictional market.`,
+        { modelTier: 'quick', cache: false, signal: askCtl.signal, onText: ({ text }) => { out.textContent = text; } });
+    } catch (err) {
+      if (err?.code !== 'cancelled') out.textContent = (err?.text || '') + (err?.text ? '\n\n' : '') + 'The answer was cut off. Ask again in a moment.';
+      if (DEAD.includes(err?.code)) { SAMPLE = null; setAI('Offline sim (no Claude)', false); }
+    }
+    $('#askBtn').disabled = !SAMPLE;
+  });
+})();
+</script>
+
+</body></html>

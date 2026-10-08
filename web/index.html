@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0c1219">
+<meta name="description" content="A live simulated stock exchange. Six AI traders and your friends trade the same order book. Fake money only.">
+<title>The Pit</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+</head>
+<body>
+
+<div class="lobby" id="lobby" hidden>
+  <div class="lobbybox">
+    <div class="brand"><h1>The Pit</h1><p>Simulated exchange · six AI traders · your friends</p></div>
+    <form class="lobbycard" id="createForm" autocomplete="off">
+      <h2>Open a room</h2>
+      <label class="fld"><span>Your name</span><input id="nameIn" maxlength="20" placeholder="e.g. Brae" required></label>
+      <div class="seg" id="modeSeg" role="group" aria-label="Market">
+        <button type="button" data-m="sim" aria-pressed="true">Sim · HLCN</button>
+        <button type="button" data-m="real" aria-pressed="false">Real · ticker</button>
+      </div>
+      <label class="fld" id="tickerFld" hidden><span>US ticker</span><input id="tickerIn" maxlength="7" placeholder="AAPL, NVDA, TSLA…" autocapitalize="characters" spellcheck="false"></label>
+      <p class="hint" id="modeHint">Fictional Halcyon Dynamics. Write any headline and watch the floor react.</p>
+      <button class="btn primary" id="createBtn" type="submit">Open the room</button>
+    </form>
+    <form class="lobbycard" id="joinForm" autocomplete="off">
+      <h2>Join a room</h2>
+      <div class="newsform"><input id="codeIn" maxlength="5" placeholder="Room code" aria-label="Room code" autocapitalize="characters" spellcheck="false"><button class="btn" type="submit">Join</button></div>
+    </form>
+    <p class="status" id="lobbyStatus" aria-live="polite"></p>
+    <p class="fine">Fake money only. Nothing here places real orders or touches a brokerage.</p>
+  </div>
+</div>
+
+<div class="lobby" id="joinCard" hidden>
+  <div class="lobbybox">
+    <div class="brand"><h1>The Pit</h1><p id="joinWhat">Joining a room</p></div>
+    <form class="lobbycard" id="nameForm" autocomplete="off">
+      <h2>Pick a name for the floor</h2>
+      <label class="fld"><span>Your name</span><input id="nameIn2" maxlength="20" placeholder="e.g. Sam" required></label>
+      <button class="btn primary" type="submit">Take a seat</button>
+    </form>
+    <p class="status" id="joinStatus" aria-live="polite"></p>
+  </div>
+</div>
+
+<div class="wrap" id="game" hidden>
+  <header class="bar">
+    <div class="brand">
+      <h1>The Pit</h1>
+      <p id="brandSub">HLCN · Halcyon Dynamics · simulated exchange</p>
+    </div>
+    <div class="quote">
+      <span class="px num" id="px">100.00</span>
+      <span class="chg" id="chg">+0.00 (0.00%)</span>
+      <span class="realq" id="realq" hidden><span class="lbl">Real</span> <b class="num" id="realPx">-</b> <span class="sub" id="realSub"></span></span>
+    </div>
+    <div class="pills">
+      <span class="pill live" id="mkt"><i></i><span>Market open</span></span>
+      <span class="pill off" id="ai"><i></i><span>Connecting Claude</span></span>
+      <button class="pill pbtn" id="roomBtn" type="button" title="Copy the invite link"><span id="roomLbl">Room</span></button>
+      <span class="pill" id="who"><span id="whoLbl">1 on the floor</span></span>
+      <button class="pill pbtn" id="soundBtn" type="button" aria-pressed="false">Sound off</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><span>Clock</span><b id="sClock">09:30:00</b></div>
+      <div class="stat"><span>Open</span><b id="sOpen">100.00</b></div>
+      <div class="stat"><span>High</span><b id="sHigh">-</b></div>
+      <div class="stat"><span>Low</span><b id="sLow">-</b></div>
+      <div class="stat"><span>VWAP</span><b id="sVwap">-</b></div>
+      <div class="stat"><span>Volume</span><b id="sVol">-</b></div>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="panel p-chart" aria-label="Price chart">
+      <div class="ph"><h2 id="chartTitle">HLCN</h2><small id="chartSub">5-second candles</small><span class="sp"></span><div class="legend"><span><b>#</b> headline</span><span>▲▼ fills</span><span>shaded: halt</span></div><div class="mini" id="speed" role="group" aria-label="Simulation speed"><button type="button" data-s="0" aria-pressed="false">Pause</button><button type="button" data-s="1" aria-pressed="true">1×</button><button type="button" data-s="3" aria-pressed="false">3×</button></div><button class="btn hostonly" id="resetBtn" type="button" hidden>Reset</button></div>
+      <div class="chartbox">
+        <canvas id="chart" role="img" aria-label="Candlestick chart"></canvas>
+        <div class="haltbanner" id="haltBanner" hidden><span id="haltTitle">Limit down</span><small id="haltSub">Circuit breaker · trading halted</small></div>
+        <div class="pausebanner" id="pauseBanner" hidden>Paused by the host</div>
+      </div>
+    </section>
+
+    <section class="panel p-desk" aria-label="Newsroom">
+      <div class="ph"><h2>Newsroom</h2><small id="deskSub">Write the news. Claude's six traders read it and trade.</small></div>
+      <div class="desk">
+        <form class="newsform" id="newsForm" autocomplete="off">
+          <input id="headline" maxlength="220" placeholder="Type any headline, real or ridiculous…" aria-label="Headline">
+          <button class="btn primary" id="breakBtn" type="submit">Break the news</button>
+        </form>
+        <div class="chips" id="chips"></div>
+        <div class="tools">
+          <button class="btn" id="surpriseBtn" type="button">Claude writes the news</button>
+          <button class="btn" id="checkBtn" type="button">Floor check</button>
+          <button class="btn" id="wrapBtn" type="button">Market wrap</button>
+          <label class="toggle"><input type="checkbox" id="deep"> Deep think (slower)</label>
+        </div>
+        <div class="status" id="status" aria-live="polite"></div>
+        <div class="wrapout" id="wrap" hidden><h3>Market wrap</h3><div id="wrapText"></div></div>
+        <ul class="wire" id="wire" aria-label="News wire"></ul>
+      </div>
+    </section>
+
+    <section class="panel p-floor" aria-label="AI traders">
+      <div class="ph"><h2>The floor</h2><small>6 AI traders · tap one to question them</small></div>
+      <ul class="chatter" id="chatter" hidden aria-label="Floor chatter" aria-live="polite"></ul>
+      <div class="floor" id="floor"></div>
+    </section>
+
+    <section class="panel p-you" aria-label="Your seat">
+      <div class="ph"><h2>Your seat</h2><small>$1M · beat the machines</small></div>
+      <div class="you">
+        <div class="youstats">
+          <div class="stat"><span>Position</span><b id="yPos">0</b></div>
+          <div class="stat"><span>Avg cost</span><b id="yAvg">-</b></div>
+          <div class="stat"><span>P&amp;L</span><b id="yPnl">$0</b></div>
+        </div>
+        <div class="seg" id="sizes" role="group" aria-label="Order size">
+          <button type="button" data-q="100" aria-pressed="false">100</button>
+          <button type="button" data-q="500" aria-pressed="true">500</button>
+          <button type="button" data-q="2000" aria-pressed="false">2,000</button>
+          <button type="button" data-q="5000" aria-pressed="false">5,000</button>
+        </div>
+        <div class="tradebtns">
+          <button class="bb buy" id="buyBtn" type="button">Buy</button>
+          <button class="bb sell" id="sellBtn" type="button">Sell</button>
+          <button class="btn" id="flatBtn" type="button">Flatten</button>
+        </div>
+        <div class="toast" id="toast" aria-live="polite">Market orders hit the same book the AI trades on.</div>
+        <h3 class="sub">Standings</h3>
+        <ol class="stand" id="stand"></ol>
+      </div>
+    </section>
+
+    <section class="panel p-book" aria-label="Order book">
+      <div class="ph"><h2>Order book</h2><small>coloured squares = AI and player orders resting</small></div>
+      <div class="book" id="book"></div>
+    </section>
+
+    <section class="panel p-tape" aria-label="Time and sales">
+      <div class="ph"><h2>Tape</h2><small>every fill, as it prints</small></div>
+      <ul class="tape" id="tape"></ul>
+    </section>
+  </main>
+  <p class="fine foot" id="foot">Fake money only. Nothing here places real orders.</p>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="Trader detail">
+  <div class="dh"><span class="dot"></span><h2 id="dName">-</h2><button class="x" id="dClose" type="button" aria-label="Close">×</button></div>
+  <div class="db">
+    <p class="voice" id="dVoice"></p>
+    <div class="youstats">
+      <div class="stat"><span>Position</span><b id="dPos">-</b></div>
+      <div class="stat"><span>Cash</span><b id="dCash">-</b></div>
+      <div class="stat"><span>P&amp;L</span><b id="dPnl">-</b></div>
+    </div>
+    <form class="askform" id="askForm" autocomplete="off">
+      <input id="askInput" maxlength="300" placeholder="Ask them anything…" aria-label="Question for this trader">
+      <button class="btn" type="submit" id="askBtn">Ask</button>
+    </form>
+    <div class="answer" id="answer"></div>
+    <h3 class="sub">Lessons they taught themselves</h3>
+    <ol class="lessons" id="dLessons"></ol>
+    <h3 class="sub">Their calls today</h3>
+    <ul class="hist" id="dHist"></ul>
+  </div>
+</aside>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
