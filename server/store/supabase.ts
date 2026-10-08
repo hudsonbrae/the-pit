@@ -10,8 +10,8 @@ export class SupabaseStore implements Store {
   readonly kind = 'supabase' as const;
   private db: SupabaseClient;
 
-  constructor(url: string, serviceKey: string) {
-    this.db = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  constructor(url: string, serviceKey: string, fetchFn?: typeof fetch) {
+    this.db = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false }, ...(fetchFn ? { global: { fetch: fetchFn } } : {}) });
   }
 
   private warn(what: string, error: unknown) { if (error) console.warn(JSON.stringify({ ev: 'db_error', what, error: String((error as { message?: string }).message ?? error) })); }
