@@ -1,71 +1,55 @@
 # The Pit
 
-A live simulated stock exchange you play from your phone. Six AI traders
-(Claude) read the news and trade. You and your friends trade the same order
-book against them and against each other. The news is either a fictional company,
-Halcyon Dynamics (HLCN), or a real US stock whose real price and real
+A live trading floor you play from your phone. Six Claude-powered AI traders read the
+news, argue about it, trade it, and get scored on whether they were right. You and your
+friends trade the same order book against them and against each other. The stock is
+either fictional (Halcyon Dynamics, HLCN) or a real US stock whose real price and real
 headlines drive the simulation.
 
-**Fake money only.** Nothing in this app places real orders, connects to a
-brokerage or handles real money.
+**Fake money only.** Nothing here places real orders, connects to a brokerage or handles real money.
 
-- **To get it online and send a link to a friend, follow [SETUP.md](SETUP.md).**
-  It is written for someone who has never deployed anything.
-- Design decisions: [DECISIONS.md](DECISIONS.md) · Market data:
-  [docs/DATA.md](docs/DATA.md) · Original brief: [BRIEF.md](BRIEF.md)
+- **To get it online and send a link to a friend: [SETUP.md](SETUP.md)**, written for someone who has never deployed anything.
+- How it fits together: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Why: [DECISIONS.md](DECISIONS.md) · Next: [docs/ROADMAP.md](docs/ROADMAP.md) · Data: [docs/DATA.md](docs/DATA.md) · Audit: [docs/MAXIMUM_POTENTIAL_AUDIT.md](docs/MAXIMUM_POTENTIAL_AUDIT.md)
+
+## What's on the floor
+
+- **A real exchange, simulated.** It has a limit order book, market makers that widen and step back under stress, about 50 crowd bots, circuit breakers, and 5-second candles. The server is authoritative; phones only render.
+- **Six AI traders with memory.** Every decision is a **call** (up, down or flat in 60 s, with a conviction) plus five **signals** (news, trend, value, flow, risk) and a one-line public rationale. No chain of thought is shown. Sixty seconds later reality scores the call. Each trader builds a track record, a confidence-vs-reality calibration, a reputation (ORACLE, HOT HAND, COLD, OVERCONFIDENT) and a risk budget the engine enforces. All of it goes into their next prompt: "you were wrong on the last management headline".
+- **Floor debates.** On big news the six state opening views, challenge each other by name, and commit. Mind changes are shown and narrated.
+- **Market intelligence**, all derived from state: the regime (calm, trending, volatile, panic, euphoria, liquidity crunch, halted), a fear/greed × bull/bear psychology map, order-flow and book signals (sell walls, thinning liquidity, aggressive buying), Humans vs AI, and smart money.
+- **A storyline** that writes itself ("Kestrel called it: DOWN at 94%, HLCN −8.1%", "Brae sold 2,100 right before a −8.1% move: +$17,014"), five tasteful achievements, and a **closing bell** with a Daily Wrap that Claude narrates.
+- **Scenarios** with causal engine effects (flash crash, short squeeze, earnings beat/miss, black swan, liquidity crisis) and a reproducible **9-act demo**.
+- **Real Market mode:** real quotes anchor fair value, and real headlines arrive marked LIVE and are debated automatically.
+- **Made for showing people:** a phone trade dock, **Stage** mode for a TV, spectators (`?watch=1`), and provenance on every number (SIM / REAL / LIVE / PLAYER / AI / SCENARIO).
+- **Built to survive:** schema-validated AI output, prompt-injection isolation, cost caps, a round watchdog, offline traders, and rate limits. It keeps playing if Claude, Finnhub or Supabase is down.
 
 ## Run it on your computer
 
 You need [Node.js](https://nodejs.org) 20.12 or newer (22 recommended).
 
 ```bash
-npm install
-npm run build && npm start
+npm run local          # install, build, start → http://localhost:8787
 ```
 
-Open <http://localhost:8787>. With no keys it runs entirely on mocks:
-**Mock Claude** streams realistic trader decisions, the **mock market**
-makes plausible prices and headlines, and storage is in memory. To use the
-real services, copy `.env.example` to `.env`, fill in the keys and restart.
-No code changes are needed.
+With no keys it runs entirely on mocks. **Mock Claude** has six distinct personalities and streams realistic decisions and debates; the **mock market** makes prices and headlines; storage is in memory. Copy `.env.example` to `.env` and fill in keys to switch each part to the real thing. No code changes are needed.
 
-For development, `npm run dev` gives hot reload on <http://localhost:5173>.
+`npm run dev` gives hot reload on <http://localhost:5173>. The control room (rooms, AI latency, tokens, estimated cost, errors, memory-vs-no-memory experiment) is at <http://localhost:8787/admin>.
 
-## How it works
+## Show it to someone in three minutes
 
-```
- phones / browsers  ──WebSocket──►  game server (Node + TypeScript)  ──►  Anthropic API (Claude)
-   render only        intents       one engine per room, 250 ms ticks ──►  Finnhub (quotes, news)
-                     ◄── deltas ──  matching, AI rounds, cost guard   ──►  Supabase (Postgres)
-```
-
-- **`server/engine.ts`**: the exchange, ported from the original
-  `engine.js`. It has a limit order book with price-time priority, market
-  makers, about 70 rule-based crowd bots, a hidden fair value, 5-second
-  candles and circuit breakers.
-- **`server/room.ts`**: one room. It ticks the engine and broadcasts a
-  compact delta about 4 times a second (last price, new trades, candles, top
-  8 book levels, accounts, events). It runs AI rounds: one streamed Claude
-  call returning JSON Lines (desk read, six trades, two chatter lines), each
-  line forwarded as it arrives, with trades executed 0.7 s apart. It falls
-  back to the offline rules when Claude is unavailable or a cost cap is hit.
-- **`server/prompts.ts`**: the original prompts, unchanged apart from
-  taking the company as a parameter.
-- **`server/market/`**: Finnhub, with one shared poller per ticker, plus a
-  mock provider.
-- **`server/store/`**: Supabase, or memory. The schema is in
-  `supabase/schema.sql`.
-- **`web/`**: the browser client (Vite + TypeScript), the original look
-  ported unchanged. `original/pit.html` is the original single-file game,
-  kept for reference.
+Open the app on a laptop and tap **Run the demo**, then **Stage**. Send the room link to a friend's phone. They trade from the bottom bar while the nine acts play out. The full script is in SETUP.md, step 6.
 
 ## Tests
 
 ```bash
-npm test            # unit tests: engine, AI rounds, multiplayer, Real Market, Supabase
-npm run test:e2e    # Playwright: two browsers in one room, streaming, reconnect, Real room
-npm run soak        # 10-minute soak: memory, message rate, event-loop delay
 npm run typecheck
+npm test            # 81 unit, chaos and security tests (~10 s)
+npm run test:e2e    # 8 Playwright tests: two browsers, phone dock, the full demo, spectators (~2 min)
+npm run soak        # 10-minute soak: memory, delta smoothness, event-loop delay
 ```
 
-Everything is tested against mocks, so no keys and no spending are needed.
+Everything is tested against mocks, so no keys and no spending are needed. Results from the last full run are in `tests/soak/`.
+
+## Working on it with Claude Code
+
+`CLAUDE.md` has the project rules. `.claude/skills/` has `pit-verify`, `pit-demo-check`, `pit-security-audit` and `pit-prompt-audit`. `.claude/agents/` has engine, security and mobile-UX reviewers. A Stop hook won't let a turn end with a failing typecheck or unit test.

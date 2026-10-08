@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/hooks/verify-on-stop.sh\"", "timeout": 120 }
+        ]
+      }
+    ]
+  }
+}

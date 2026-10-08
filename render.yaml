@@ -28,3 +28,7 @@ services:
         value: "200"
       - key: AI_ROUNDS_PER_MIN_PER_ROOM
         value: "3"
+      - key: AI_ROOM_DAILY_ROUND_CAP
+        value: "80"
+      - key: ADMIN_TOKEN               # Render makes a random one; copy it from the Environment tab to open /admin
+        generateValue: true

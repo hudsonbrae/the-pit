@@ -10,7 +10,7 @@ you load yourself, and you'll set a hard monthly limit on it in step 1.
 
 | Service | What it does here | Cost |
 |---|---|---|
-| Anthropic | The six AI traders (Claude) | Pay-as-you-go from prepaid credit. You set the monthly limit. Roughly 1–3 cents per AI round (see "What it costs") |
+| Anthropic | The six AI traders (Claude) | Pay-as-you-go from prepaid credit. You set the monthly limit. Roughly 2–4 cents per AI round, 4–7 cents per floor debate (see "What it costs") |
 | Finnhub | Real stock prices and headlines | Free plan |
 | Supabase | Database: rooms, players' positions, traders' lessons | Free plan |
 | Render | Runs the app on the internet | Free plan. Render may ask for a card to verify you; it doesn't charge the free plan |
@@ -63,7 +63,8 @@ you load yourself, and you'll set a hard monthly limit on it in step 1.
 3. **Create the tables.** In the left sidebar click **SQL Editor**, then
    **New query**. Open the file [`supabase/schema.sql`](supabase/schema.sql)
    from this repo, copy **all** of it, paste it into the editor, and click
-   **Run**. You should see "Success. No rows returned".
+   **Run**. You should see "Success. No rows returned". (The file is safe to
+   run again whenever it changes: it only adds what's missing.)
 4. **Copy the two values the app needs:**
    - **Project URL:** click **Connect** at the top of the project page (or
      **Project Settings → Data API**). It looks like
@@ -144,8 +145,31 @@ open the Supabase dashboard and click **Restore project**.
    `"store":"supabase"`. If one of them says "Mock" or "memory", that key is
    missing or mistyped. Fix it under the service's **Environment** tab; Render
    redeploys by itself.
+8. **Your control room (optional):** Render created a random `ADMIN_TOKEN` for
+   you. Copy it from the service's **Environment** tab and open
+   `https://the-pit-xxxx.onrender.com/admin?token=PASTE_IT_HERE`. It shows every
+   room, AI latency, tokens, the day's estimated cost, data freshness and any
+   errors. Don't share that link.
 
 ## Step 6: Play
+
+**The fastest way to show someone: run the demo.**
+
+1. On a laptop (or a TV), open your Render link and tap **Run the demo**. A
+   scripted, six-minute story plays out: a calm open, a bombshell, a floor
+   debate, a crash, a halt, a twist, and then the scores. Tap **Stage** at the
+   top for the big-screen layout.
+2. Tap **Room XXXXX · invite** and send the link to your friend's phone. They
+   type a name and trade from the bar at the bottom of their screen while it
+   happens.
+3. When it ends, everyone sees the **Daily wrap**. As host, tap **Start a new
+   session** to play again. The traders remember how they did.
+
+The "Host · lab" button (host only) has the other scenarios (flash crash,
+short squeeze, earnings, black swan, liquidity crisis), the market dials, and
+the **closing bell**.
+
+**A real stock:**
 
 1. Open your Render link on your phone.
 2. Type your name, tap **Real · ticker**, enter e.g. `NVDA`, and tap
@@ -153,8 +177,11 @@ open the Supabase dashboard and click **Restore project**.
 3. Tap **Room XXXXX · invite** at the top. On a phone this opens the share
    sheet, so send it to a friend by text or WhatsApp. On a computer it copies the link.
 4. Your friend opens the link, types a name and is on the same floor. Real
-   headlines arrive on their own, marked **LIVE**. Anything you type is marked
-   **PLAYER**. Tap a trader to question them.
+   headlines arrive on their own, marked **LIVE**, and the six traders debate
+   each one before trading. Anything you type is marked **PLAYER**. Tap a
+   trader to see their record and question them.
+5. Someone who only wants to watch (on a TV, say) can use the **watch link**
+   from Host · lab. They see everything but don't take a seat.
 
 Tip: add the link to your home screen (Share → **Add to Home Screen**) so it
 opens like an app.
@@ -169,18 +196,26 @@ the next visit. Rooms, positions and the traders' lessons are kept in
 Supabase, and your room link keeps working after a wake-up. The simulated
 price restarts from the current real price.
 
-**What it costs (Anthropic only).** One AI round (a headline read by all six
-traders) uses roughly 2,000 input and 1,000 output tokens on the Sonnet
-model, about **1–3 US cents**. Asking a trader a question or getting the
-market wrap uses the much cheaper Haiku model, a fraction of a cent. A busy
-20-minute session with a friend is typically **$0.30–$1.00**. These figures
-are estimates from the prompt sizes; check the Anthropic Console's usage page
-after your first session. Built-in brakes (change them in Render →
-**Environment**):
+**What it costs (Anthropic only).** These are measured prompt sizes, not a
+bill:
 
-- `AI_ROUNDS_PER_MIN_PER_ROOM=3`: at most 3 AI rounds a minute per room
-- `AI_DAILY_ROUND_CAP=200`: at most 200 AI rounds a day across all rooms (about $2–6)
-- On top of these, the monthly spend limit you set in step 1.
+- **One AI round** (a headline read by all six traders) is about 2,700 input
+  and 1,000 output tokens on the Sonnet model: about **1.6 cents**, or 2–4
+  cents with the model's thinking.
+- **A floor debate** is two calls: about **3.3 cents**, or 4–7 cents with thinking.
+- **Asking a trader, "Claude writes the news" and the narrator** use the much
+  cheaper Haiku model: a fraction of a cent each.
+- **The demo** costs about 10 cents.
+- **A busy 20-minute session** with a friend is typically **$0.50–$1.00**.
+
+Check the Anthropic Console's usage page (or `/admin`) after your first
+session. Built-in brakes (change them in Render → **Environment**):
+
+- `AI_ROUNDS_PER_MIN_PER_ROOM=3`: at most 3 AI rounds a minute per room (a debate counts as 2)
+- `AI_ROOM_DAILY_ROUND_CAP=80`: at most 80 per room per day
+- `AI_DAILY_ROUND_CAP=200`: at most 200 a day across all rooms, about $4–8 at most. This survives restarts.
+- Each player can break news once every 8 seconds. "Deep think" (slower, pricier) is host-only.
+- On top of all these, the monthly spend limit you set in step 1.
 
 When a cap is hit the game keeps working: the traders switch to their
 offline rules and the header says so.
