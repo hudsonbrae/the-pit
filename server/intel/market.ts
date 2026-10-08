@@ -8,6 +8,7 @@ import type { Scorebook } from './stats.js';
 import type { IntelV, Regime } from '../../shared/protocol.js';
 
 interface Flow { t: number; q: number }
+const PRESSURE = [[12, 'EXTREME'], [6, 'HIGH'], [2, 'ELEVATED'], [0, 'LOW']] as const;
 
 export class MarketIntel {
   private flow: Flow[] = [];            // signed aggressor quantity per print
@@ -23,6 +24,11 @@ export class MarketIntel {
   lastRoundT = -1e9;
   /** Psychology history for the dot's trail (last 20 seconds). */
   private trail: [number, number][] = [];
+  /** Human order flow (signed shares) and recent headline impacts, for the crowd read. */
+  private hflow: Flow[] = [];
+  private heads: { t: number; impact: number }[] = [];
+  onHumanTrade(t: number, q: number) { this.hflow.push({ t, q }); if (this.hflow.length > 2000) this.hflow.splice(0, 500); }
+  onHeadline(t: number, impact: number) { this.heads.push({ t, impact }); if (this.heads.length > 50) this.heads.shift(); }
 
   onTrade(tr: Trade) { this.flow.push({ t: tr.t, q: tr.aggr === 'buy' ? tr.q : -tr.q }); if (this.flow.length > 4000) this.flow.splice(0, 1000); }
   onHalt(t: number, dir: 'up' | 'down') { this.lastHalt = { t, dir }; }
@@ -101,6 +107,11 @@ export class MarketIntel {
     }
     this.trail.push([+bull.toFixed(3), +greed.toFixed(3)]); if (this.trail.length > 20) this.trail.shift();
 
+    // ---- the crowd: what humans are doing (last 2 min of their fills) and how hard the news is pushing ----
+    while (this.hflow.length && this.hflow[0].t < t - 480) this.hflow.shift();
+    let hb = 0, hs = 0; for (const f of this.hflow) { if (f.q > 0) hb += f.q; else hs -= f.q; }
+    const pressure = this.heads.reduce((a, h) => a + Math.abs(h.impact) * Math.pow(0.5, (t - h.t) / 240), 0);
+
     // ---- order-book signals (only what the book and tape show) ----
     const sig: string[] = [];
     if (!S.halted) {
@@ -129,6 +140,10 @@ export class MarketIntel {
       book: { imb: +imb.toFixed(3), ofi: +ofi.toFixed(3), buyV, sellV, spr: +spr.toFixed(1), depth: d8, depthRatio: +d8ratio.toFixed(2), signals: sig.slice(0, 4) },
       stats: { rv: Math.round(rv), r30: +(r30 * 100).toFixed(2), v1m },
       teams, smart,
+      crowd: {
+        aiBull: Math.round((aiNet + 1) * 50), human: hb + hs ? { net: hb - hs, bull: Math.round(hb / (hb + hs) * 100) } : null,
+        news: { pressure: +pressure.toFixed(1), label: PRESSURE.find(([v]) => pressure >= v)![1] },
+      },
     };
   }
 }

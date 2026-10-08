@@ -24,6 +24,7 @@ import { Rooms, RoomError } from './rooms.js';
 import type { Room, RoomDeps, Player } from './room.js';
 import type { ClientMsg } from '../shared/protocol.js';
 import { adminHtml } from './admin.js';
+import { Legends } from './legends.js';
 import { shrunk } from './intel/stats.js';
 
 export interface AppOverrides { cfg?: Partial<Config>; llm?: LLM | null; store?: Store; market?: MarketProvider | null; random?: () => number; marketAutoPoll?: boolean }
@@ -43,7 +44,9 @@ export function buildDeps(o: AppOverrides = {}): RoomDeps & { store: SafeStore }
   else market = new FinnhubProvider(cfg.finnhubKey);
   const hub = market ? new MarketHub(market, { quoteEverySec: cfg.quotePollSec, newsEverySec: cfg.newsPollSec, autoPoll: o.marketAutoPoll }) : null;
   const guard = new CostGuard({ roundsPerMin: cfg.aiRoundsPerMinPerRoom, dailyRounds: cfg.aiDailyRoundCap, dailySmall: cfg.aiDailySmallCap, roomDailyRounds: cfg.aiRoomDailyRoundCap, ownerDailyRounds: cfg.aiOwnerDailyRoundCap, roomDailySmall: cfg.aiRoomDailySmallCap });
-  return { cfg, llm, guard, store, hub, random: o.random, aiState: { dead: false } };
+  const legends = new Legends(store);
+  void legends.hydrate();
+  return { cfg, llm, guard, store, hub, random: o.random, aiState: { dead: false }, legends };
 }
 
 const TYPES: Record<string, string> = {
@@ -207,6 +210,10 @@ export function createApp(o: AppOverrides = {}): App {
         const room = await rooms.get(m[1], () => restoreLimit.hit(ip));
         if (!room) return json(res, 404, { error: 'No room with that code.' });
         return json(res, 200, { code: room.code, mode: room.mode, ticker: room.ticker, company: room.co.name, players: room.playersV().length });
+      }
+      if (url.pathname === '/api/legends' && req.method === 'GET') {
+        if (!lookupLimit.hit(ipOf(req))) return json(res, 429, { error: 'Slow down.' });
+        return json(res, 200, { legends: deps.legends?.list() ?? [] });
       }
       if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'Not found' });
       if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'Method not allowed' });

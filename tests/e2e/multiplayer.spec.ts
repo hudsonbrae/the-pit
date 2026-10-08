@@ -141,3 +141,35 @@ test('a spectator watches on a big screen without a seat', async ({ browser }) =
   await expect(host.locator('#whoLbl')).toContainText('1 watching');
   await expect(host.locator('#stand')).not.toContainText('watch');
 });
+
+test('host chaos, the timeline, AI science, closing bell → Legends and "Previously on"', async ({ browser }) => {
+  const host = await player(browser, 'Brae');
+  await openRoom(host);
+  const errors: string[] = []; host.on('pageerror', e => errors.push(String(e)));
+  await host.click('#buyBtn');
+  // chaos: trip the breaker from the host panel
+  await host.click('#hostBtn');
+  await host.click('#chaosList [data-id="chaos_halt"]');
+  await expect(host.locator('#haltBanner')).toBeVisible({ timeout: 5000 });
+  await expect(host.locator('#story')).toContainText('CHAOS · MARKET HALT');
+  // the timeline shows the small stuff too
+  await host.click('#storyTabs [data-v="timeline"]');
+  await expect(host.locator('#story li').first()).toBeVisible();
+  // AI science drawer
+  await host.click('#sciBtn');
+  await expect(host.locator('#sciBody')).toContainText('Does debate make the floor smarter?');
+  await host.click('#sClose');
+  // close the session: the recap names new records; the next session opens with "Previously on"
+  await host.click('#hostBtn');
+  await host.click('#closeBtn');
+  await expect(host.locator('#recap')).toBeVisible({ timeout: 5000 });
+  await expect(host.locator('#recapBody')).toContainText('New record');
+  await host.click('#rNew');
+  await expect(host.locator('#prev')).toBeVisible({ timeout: 5000 });
+  await expect(host.locator('#prevBody')).toContainText('NEW RECORD');
+  // the lobby lists the Legends
+  await host.goto('/');
+  await expect(host.locator('#legends')).toBeVisible();
+  await expect(host.locator('#legendList')).toContainText('Wildest session');
+  expect(errors).toEqual([]);
+});

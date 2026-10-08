@@ -95,6 +95,8 @@ export interface IntelV {
   stats: { rv: number; r30: number; v1m: number };
   teams: { human: { pnl: number; ret: number; n: number }; ai: { pnl: number; ret: number }; leader: { id: string; name: string; human: boolean } | null };
   smart: { id: string; sh: number } | null;
+  /** AI floor bullishness 0-100 (from their calls), humans' last-2-min fills (net shares, % buying), decayed headline pressure. */
+  crowd: { aiBull: number; human: { net: number; bull: number } | null; news: { pressure: number; label: string } };
 }
 
 /** A storyline entry. weight 1 = timeline detail, 2 = moment, 3 = big moment. `title` names the moment ("THE FLOOR SPLITS"). */
@@ -125,6 +127,8 @@ export interface RoomInfo {
   watchers: number;
   scenario: { id: string; name: string; act: string | null } | null;
   scenarios: { id: string; name: string; desc: string }[];
+  /** Host chaos controls (Sim only). */
+  chaos: { id: string; name: string; desc: string }[];
   /** Real mode only. */
   real?: { price: number | null; asOf: string | null; marketOpen: boolean | null; session: string | null; provider: string };
 }
@@ -144,6 +148,8 @@ export interface Snapshot extends Delta {
   halts: HaltV[]; fills: FillV[]; markers: MarkerV[];
   agents: AgentV[]; players: PlayerV[]; wire: NewsV[]; chatter: ChatterV[]; round: RoundState;
   stories: StoryV[]; stats: Record<string, TraderStatsV>; oracle: string | null; intel: IntelV; science: ScienceV;
+  /** Set for the first minute of a new session: what happened last time. */
+  prev?: PrevV | null;
 }
 
 export interface ChatterV { id: string; to: string; line: string; kind?: 'chatter' | 'challenge' }
@@ -165,7 +171,15 @@ export interface RecapV {
   worstCall: { name: string; call: string; conviction: number; ret: number; head: string } | null;
   /** Fastest human trade after a headline, in seconds. */
   fastest: { name: string; secs: number } | null;
+  /** All-time records set this session. */
+  records: LegendV[];
 }
+
+/** An all-time record. */
+export interface LegendV { key: string; title: string; holder: string; value: string; detail: string; at: string }
+
+/** "Previously on The Pit": the last session, in a few lines. */
+export interface PrevV { id: string; ticker: string; chg: number; winner: { name: string; pnl: number; human: boolean } | null; verdict: string; moments: { title: string; text: string }[]; records: string[] }
 
 export type ServerMsg =
   | { k: 'hello'; you: PlayerV | null; room: RoomInfo; snap: Snapshot }
@@ -201,6 +215,7 @@ export type ClientMsg =
   | { k: 'host'; action: 'close' }
   | { k: 'host'; action: 'lab'; lab: Partial<LabV> }
   | { k: 'host'; action: 'scenario'; id: string }
+  | { k: 'host'; action: 'chaos'; id: string }
   | { k: 'ping'; t: number };
 
 export const ORDER_SIZES = [100, 500, 2000, 5000];

@@ -11,7 +11,7 @@ export type Step =
   | { after: number; program: 'buy' | 'sell'; perTick: number; ticks: number; note?: string }
   | { after: number; withdraw: number; note?: string }
   | { after: number; knobs: { vol?: number; liq?: number; spread?: number; crowd?: number }; ticks: number; note?: string }
-  | { after: number; haltIfNone: 'up' | 'down'; withinTicks: number }
+  | { after: number; haltIfNone: 'up' | 'down' | 'auto'; withinTicks: number }
   | { after: number; waitResume: true }
   | { after: number; prompt: string }
   | { after: number; close: true }
@@ -98,5 +98,55 @@ export const SCENARIOS: Scenario[] = [
   },
 ];
 
+/**
+ * Chaos controls: one-tap events for the host. Same machinery as scenarios (and the same
+ * honesty: mechanical steps hit the engine; headlines go through a real AI round, labelled
+ * SCENARIO, so the traders decide for themselves how to react, and the cost guard applies).
+ */
+export const CHAOS: Scenario[] = [
+  { id: 'chaos_news', name: 'News shock', desc: 'A random market-moving headline hits the wire.', steps: [{ after: 0, act: 'NEWS SHOCK', sub: 'Something just hit the wire.' }, { after: 0, news: '{random}' }] },
+  {
+    id: 'chaos_crash', name: 'Flash crash', desc: 'Dealers vanish and a runaway sell program hits every bid.', steps: [
+      { after: 0, act: 'FLASH CRASH', sub: 'A sell program is hitting every bid.' },
+      { after: 0, withdraw: 20, note: 'Market makers pull their quotes.' },
+      { after: 0, knobs: { liq: 0.3, spread: 2.5 }, ticks: 200 },
+      { after: 0, program: 'sell', perTick: 700, ticks: 16, note: 'A runaway sell program hits every bid.' },
+    ],
+  },
+  {
+    id: 'chaos_squeeze', name: 'Short squeeze', desc: 'Forced buying into a thin ask side.', steps: [
+      { after: 0, act: 'SHORT SQUEEZE', sub: 'Shorts are covering at any price.' },
+      { after: 0, withdraw: 10 },
+      { after: 0, shock: 4, speed: 'fast' },
+      { after: 0, program: 'buy', perTick: 600, ticks: 20, note: 'Shorts are covering: forced buying.' },
+    ],
+  },
+  {
+    id: 'chaos_liquidity', name: 'Liquidity crisis', desc: 'Dealers shrink to a quarter of their size for 90 seconds.', steps: [
+      { after: 0, act: 'LIQUIDITY CRISIS', sub: 'The dealers just left.' },
+      { after: 0, withdraw: 12 },
+      { after: 0, knobs: { liq: 0.25, spread: 3 }, ticks: 360, note: 'Market makers shrink to a quarter of their size.' },
+    ],
+  },
+  { id: 'chaos_beat', name: 'Earnings beat', desc: 'A big beat and a raise.', steps: [{ after: 0, act: 'EARNINGS BEAT', sub: 'The numbers are out.' }, { after: 0, knobs: { vol: 2 }, ticks: 240 }, { after: 0, news: '{co} beats quarterly estimates by 22% and raises full-year guidance' }] },
+  { id: 'chaos_miss', name: 'Earnings miss', desc: 'A miss and a guidance cut.', steps: [{ after: 0, act: 'EARNINGS MISS', sub: 'The numbers are out.' }, { after: 0, knobs: { vol: 2 }, ticks: 240 }, { after: 0, news: '{co} misses quarterly revenue estimates by 15% and cuts guidance' }] },
+  { id: 'chaos_panic', name: 'AI panic', desc: 'The risk desk orders every trader to cut exposure. The AI decides how.', steps: [{ after: 0, act: 'AI PANIC', sub: 'The risk desk just hit the alarm.' }, { after: 0, news: 'RISK DESK: firm-wide loss limits breached; all trading desks ordered to cut {T} exposure immediately' }] },
+  { id: 'chaos_euphoria', name: 'AI euphoria', desc: 'A takeover rumour sweeps the floor. Rumour, not fact: the desk should say so.', steps: [{ after: 0, act: 'AI EUPHORIA', sub: 'A rumour is sweeping the floor.' }, { after: 0, news: 'Floor rumour: a megacap buyer is preparing a takeover bid for {co} at a 45% premium' }] },
+  { id: 'chaos_halt', name: 'Market halt', desc: 'Trip the circuit breaker now.', steps: [{ after: 0, haltIfNone: 'auto', withinTicks: 0 }] },
+];
+
+/** Headlines for the News shock button (one is picked with the room's seeded RNG). */
+export const NEWS_SHOCKS = [
+  '{co} wins a $4 billion multi-year grid storage contract with a national utility',
+  'Regulators open an investigation into {co} battery fire reports',
+  '{co} CEO sells 40% of personal stake in an unscheduled filing',
+  'Major customer cancels {short} supply agreement citing quality issues',
+  '{co} announces a $2 billion share buyback',
+  'Tariffs on imported battery cells doubled, effective next month',
+  '{co} breakthrough cell chemistry doubles energy density in independent tests',
+  'Short seller publishes report alleging {co} inflated order backlog',
+];
+
 export const scenarioList = () => SCENARIOS.map(s => ({ id: s.id, name: s.name, desc: s.desc }));
+export const chaosList = () => CHAOS.map(s => ({ id: s.id, name: s.name, desc: s.desc }));
 export const fill = (s: string, co: { ticker: string; name: string; short: string }) => s.replaceAll('{T}', co.ticker).replaceAll('{co}', co.name).replaceAll('{short}', co.short);

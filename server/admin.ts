@@ -27,7 +27,17 @@ table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:4px 8px;
  <div class="panel"><h2>AI cost · today</h2><div class="kpi" id="cost"></div></div>
  <div class="panel"><h2>Market data</h2><div id="mkt"></div></div>
 </div>
-<div class="panel"><h2>Rooms</h2><table id="rooms"></table></div>
+<div class="panel"><h2>Rooms</h2><p class="sub">Click a room code to drill in.</p><table id="rooms"></table></div>
+<div class="panel" id="detailP" hidden><h2 id="dTitle">Room</h2><div class="kpi" id="dKpi"></div>
+ <div class="grid" style="margin-top:10px">
+  <div><div class="sub">AI traders</div><table id="dAgents"></table></div>
+  <div><div class="sub">Humans</div><table id="dPlayers"></table><div class="sub" style="margin-top:10px">Book (top 5)</div><table id="dBook"></table></div>
+ </div>
+ <div class="grid" style="margin-top:10px">
+  <div><div class="sub">Storyline</div><div id="dStories" style="white-space:pre-wrap"></div></div>
+  <div><div class="sub">AI science</div><div id="dSci"></div></div>
+ </div>
+</div>
 <div class="grid">
  <div class="panel"><h2>Recent AI calls</h2><table id="calls"></table></div>
  <div class="panel"><h2>Experiment · AI config vs accuracy</h2><p class="sub">Calls are scored 60 s after they're made. Small samples are noisy.</p><table id="exp"></table></div>
@@ -36,6 +46,8 @@ table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:4px 8px;
 </div>
 <script>
 const q = new URLSearchParams(location.hash.slice(1)).get('token') || '';
+let pick = null;
+document.addEventListener('click', ev => { const a = ev.target.closest('[data-room]'); if (a) { ev.preventDefault(); pick = pick === a.dataset.room ? null : a.dataset.room; tick(); } });
 const $ = s => document.querySelector(s);
 const e = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const usd = x => x == null ? '-' : '$' + (+x).toFixed(x < 0.1 ? 4 : 2);
@@ -52,12 +64,25 @@ async function tick() {
     $('#cost').innerHTML = kpi({ Provider: a.provider, Today: usd(a.costUSD), 'Last call': usd(a.lastCallUSD), Rounds: a.rounds + ' / ' + a.roundCap, Small: a.small + ' / ' + a.smallCap, 'Tokens in/out': a.tokensIn + ' / ' + a.tokensOut, Avoided: a.avoided });
     $('#mkt').innerHTML = d.market ? '<div class="sub">' + e(d.market.provider) + ' · US market ' + (d.market.status ? (d.market.status.isOpen ? '<span class=ok>open</span>' : 'closed') : '?') + '</div>' + tbl([['Ticker', t => e(t.symbol)], ['Rooms', t => t.listeners], ['Price', t => t.price ?? '-'], ['Quote age', t => t.quoteAgeSec == null ? '-' : '<span class="' + (t.quoteAgeSec > 120 ? 'amb' : 'ok') + '">' + t.quoteAgeSec + 's</span>']], d.market.tickers) : 'off';
     $('#rooms').innerHTML = tbl([
-      ['Room', r => '<b>' + e(r.code) + '</b>'], ['Mode', r => e(r.mode + ' ' + r.ticker)], ['Seed', r => r.seed], ['Players', r => r.online + '/' + r.players + (r.watchers ? ' +' + r.watchers + ' watching' : '')],
+      ['Room', r => '<a href="#" data-room="' + e(r.code) + '" style="color:var(--amber)"><b>' + e(r.code) + '</b></a>'], ['Mode', r => e(r.mode + ' ' + r.ticker)], ['Seed', r => r.seed], ['Players', r => r.online + '/' + r.players + (r.watchers ? ' +' + r.watchers + ' watching' : '')],
       ['Speed', r => r.speed + '×'], ['Regime', r => e(r.regime)], ['Round', r => r.round ? '<span class=amb>' + e(r.round) + '</span>' : '-'], ['Queue', r => r.liveQueue],
       ['AI rounds', r => r.rounds.aiRounds + ' (+' + r.rounds.debates + ' debates, ' + r.rounds.offlineRounds + ' offline)'], ['AI avg', r => r.aiAvgMs == null ? '-' : r.aiAvgMs + ' ms'],
       ['Cost', r => usd(r.costToday)], ['Frame', r => r.frameMsAvg + ' / ' + r.frameMsMax + ' ms'], ['Sent', r => r.mbSent + ' MB'], ['Pending calls', r => r.pendingCalls],
       ['Lab', r => e('mem ' + (r.lab.memory ? 'on' : 'off') + ' · debate ' + r.lab.debate + ' · vol ' + r.lab.vol + ' · liq ' + r.lab.liq)],
     ], d.rooms);
+    const sel = d.rooms.find(r => r.code === pick);
+    $('#detailP').hidden = !sel;
+    if (sel) {
+      const x = sel.detail;
+      $('#dTitle').textContent = 'Room ' + sel.code + ' · ' + sel.ticker + ' · ' + x.clock;
+      $('#dKpi').innerHTML = kpi({ Last: x.last, Halted: x.halted ? x.halted + 's' : 'no', Regime: sel.regime, Mood: x.psych, Imbalance: x.flow.imb, Spread: x.flow.spr + ' bps', Depth: x.flow.depth, Signals: x.signals.join(', ') || '-' });
+      $('#dAgents').innerHTML = tbl([['Trader', a => e(a.name)], ['Shares', a => a.sh], ['P&L', a => '<span class="' + (a.pnl >= 0 ? 'ok' : 'bad') + '">' + a.pnl + '</span>'], ['Call', a => e((a.call || '-') + ' ' + a.conv + '%')], ['Budget', a => a.budget], ['Record', a => e(a.record)], ['Last', a => e(a.thinking || a.last || '-')], ['Badges', a => e(a.badges.join(' '))]], x.agents);
+      $('#dPlayers').innerHTML = tbl([['Name', p => e(p.name) + (p.host ? ' (host)' : '')], ['Online', p => p.online], ['Shares', p => p.sh], ['P&L', p => p.pnl]], x.players);
+      $('#dBook').innerHTML = tbl([['Bid', l => l[0] ? l[0][1] + ' @ ' + l[0][0] : ''], ['Ask', l => l[1] ? l[1][1] + ' @ ' + l[1][0] : '']], Array.from({ length: 5 }, (_, i) => [x.book.bids[i], x.book.asks[i]]));
+      $('#dStories').textContent = x.stories.join('\n');
+      const s = sel.science;
+      $('#dSci').innerHTML = e(s.verdict) + '<br>opening ' + (s.debate.open ?? '-') + '% · final ' + (s.debate.final ?? '-') + '% · no debate ' + (s.single.acc ?? '-') + '% (' + s.single.n + ')<br>herding calm ' + (s.herding.calm ?? '-') + ' · stressed ' + (s.herding.stressed ?? '-') + '<br>desk direction ' + (s.desk.acc ?? '-') + '% of ' + s.desk.n;
+    }
     $('#calls').innerHTML = tbl([['Room', c => e(c.room)], ['Kind', c => e(c.kind)], ['Model', c => e(c.model)], ['In/out', c => c.inputTokens + '/' + c.outputTokens], ['ms', c => c.ms], ['Cost', c => usd(c.cost)], ['OK', c => c.ok ? '<span class=ok>✓</span>' : '<span class=bad>✗</span>']], a.recent);
     $('#exp').innerHTML = tbl([['Config', x => e(x.lab)], ['Rooms', x => x.rooms], ['Calls', x => x.calls], ['Accuracy', x => x.accuracy == null ? '-' : Math.round(x.accuracy * 100) + '%'], ['70+ conv', x => x.highConvAccuracy == null ? '-' : Math.round(x.highConvAccuracy * 100) + '%']], d.experiments);
     $('#errs').textContent = d.errors.length ? d.errors.join('\\n') : 'none';

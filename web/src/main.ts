@@ -8,7 +8,7 @@ import './style.css';
 import { f2, fi, money, sgn, esc } from '../../shared/format';
 import type {
   AccV, AgentV, CandleV, ChatterV, ClientMsg, FillV, HaltV, IntelV, LevelV, MarkerV, NewsV, PlayerV, RecapV, RoomInfo, RoundState, ServerMsg, Snapshot,
-  StoryV, TradeV, TraderStatsV, ScienceV,
+  StoryV, TradeV, TraderStatsV, ScienceV, LegendV, PrevV,
 } from '../../shared/protocol';
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
@@ -97,6 +97,11 @@ function lobby() {
   const code = () => { const c = $<HTMLInputElement>('#codeIn').value.trim().toUpperCase(); if (!/^[A-Z]{5}$/.test(c)) { st.className = 'status err'; st.textContent = 'Room codes are 5 letters.'; return null; } return c; };
   $('#joinForm').addEventListener('submit', e => { e.preventDefault(); const c = code(); if (c) location.href = `/r/${c}`; });
   $('#watchBtn').addEventListener('click', () => { const c = code(); if (c) location.href = `/r/${c}?watch=1`; });
+  void fetch('/api/legends').then(r => r.ok ? r.json() : null).then((j: { legends: LegendV[] } | null) => {
+    if (!j?.legends.length) return;
+    $('#legendList').innerHTML = j.legends.map(l => `<li><span>${esc(l.title)}</span><b>${esc(l.holder)}</b><em>${esc(l.value)}</em></li>`).join('');
+    $('#legends').hidden = false;
+  }).catch(() => { /* offline lobby still works */ });
 }
 
 async function enter(code: string) {
@@ -143,8 +148,8 @@ function startGame(code: string, name: string, watch: boolean) {
 // ---------- messages ----------
 function onMsg(m: ServerMsg) {
   switch (m.k) {
-    case 'hello': G.me = m.you; joinedOnce = true; applyRoom(m.room); applySnap(m.snap); break;
-    case 'reset': applySnap(m.snap); $('#chatter').innerHTML = ''; $('#chatter').hidden = true; $('#wrap').hidden = true; $('#recap').hidden = true; $('#toast').textContent = 'New session. Everyone is back to $1M; the traders keep their memories.'; break;
+    case 'hello': G.me = m.you; joinedOnce = true; applyRoom(m.room); applySnap(m.snap); showPrev(m.snap.prev); break;
+    case 'reset': applySnap(m.snap); showPrev(m.snap.prev); $('#chatter').innerHTML = ''; $('#chatter').hidden = true; $('#wrap').hidden = true; $('#recap').hidden = true; $('#toast').textContent = 'New session. Everyone is back to $1M; the traders keep their memories.'; break;
     case 'd': applyDelta(m); break;
     case 'wire': G.wire = m.wire; renderWire(); break;
     case 'agent': {
@@ -274,6 +279,8 @@ function renderIntel() {
   $('#psychLbl').textContent = v.psych.label;
   const sp = v.psych.split;
   $('#split').textContent = sp.buy + sp.sell + sp.hold ? `AI floor: ${sp.buy} buy · ${sp.sell} sell · ${sp.hold} hold` : 'AI floor: no calls yet';
+  const cr = v.crowd;
+  $('#crowd').textContent = `${cr.human ? `Humans ${cr.human.bull}% buying (${cr.human.net >= 0 ? '+' : '−'}${fi(Math.abs(cr.human.net))})` : 'Humans: no recent fills'} · news ${cr.news.label}`;
   drawPsych(v);
   const tot = v.book.buyV + v.book.sellV || 1;
   $('#flowB').style.width = (v.book.buyV / tot * 100) + '%'; $('#flowS').style.width = (v.book.sellV / tot * 100) + '%';
@@ -642,13 +649,31 @@ function showAch(title: string, desc: string) {
   sfx.ach(); buzz([20, 40, 20]);
   clearTimeout(achTimer); achTimer = window.setTimeout(() => { b.hidden = true; }, 4600);
 }
+let prevTimer = 0;
+function showPrev(p: PrevV | null | undefined) {
+  if (!p) return;
+  const key = 'pit.prev.' + p.id;
+  try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch { /* private mode */ }
+  const lines = [
+    `<div><b>${esc(p.ticker)}</b>closed ${p.chg >= 0 ? '+' : ''}${p.chg.toFixed(2)}%${p.winner ? ` · ${esc(p.winner.name)}${p.winner.human ? ' (human)' : ''} won with ${money(p.winner.pnl)}` : ''}.</div>`,
+    ...p.moments.map(m => `<div><b>${esc(m.title)}</b>${esc(m.text)}</div>`),
+    ...p.records.map(r => `<div><b>NEW RECORD</b>${esc(r)}</div>`),
+    `<div class="voice">${esc(p.verdict)}</div>`,
+  ];
+  $('#prevBody').innerHTML = lines.join('');
+  $('#prev').hidden = false;
+  clearTimeout(prevTimer); prevTimer = window.setTimeout(() => { $('#prev').hidden = true; }, 14_000);
+}
+$('#prevX').onclick = () => { $('#prev').hidden = true; };
+
 function showRecap(r: RecapV) {
-  const card = (k: string, v: string, p = '') => `<div class="rcard"><span>${esc(k)}</span><b>${v}</b>${p ? `<p>${p}</p>` : ''}</div>`;
+  const card = (k: string, v: string, p = '', cls = '') => `<div class="rcard ${cls}"><span>${esc(k)}</span><b>${v}</b>${p ? `<p>${p}</p>` : ''}</div>`;
   const chg = r.close / r.open - 1;
   const top = r.standings.map((s, i) => `${i + 1}. ${esc(s.name)}${s.human ? ' (human)' : ''} <span class="${sgn(s.pnl)}">${money(s.pnl)}</span>`).join('<br>');
   const humans = r.standings.some(s => s.human);
   const sat = r.humans.traded === 0;
   $('#recapBody').innerHTML = `<div class="rgrid">
+    ${r.records.map(x => card('New record · ' + x.title, esc(x.value), esc(x.holder), 'rec')).join('')}
     ${card(r.ticker, `${f2(r.close)} <small class="${sgn(chg)}">${chg >= 0 ? '+' : ''}${(chg * 100).toFixed(2)}%</small>`, `open ${f2(r.open)} · high ${f2(r.hi)} · low ${f2(r.lo)} · ${fi(r.volume)} shares · ${r.halts} halt${r.halts === 1 ? '' : 's'}`)}
     ${card('Standings', '', top)}
     ${humans ? card('Humans vs AI', sat ? 'HUMANS SAT OUT' : r.humans.ret >= r.ai.ret ? 'HUMANS WIN' : 'AI WINS', sat ? `nobody traded · AI floor ${r.ai.ret >= 0 ? '+' : ''}${r.ai.ret.toFixed(2)}%` : `humans ${r.humans.ret >= 0 ? '+' : ''}${r.humans.ret.toFixed(2)}% · AI floor ${r.ai.ret >= 0 ? '+' : ''}${r.ai.ret.toFixed(2)}%`) : ''}
@@ -844,6 +869,8 @@ function paintHost() {
   $('#scenBox').hidden = !r.scenarios.length;
   $('#scenList').innerHTML = r.scenarios.map(s => `<button class="btn" type="button" data-id="${esc(s.id)}" ${r.scenario ? 'disabled' : ''}>${esc(s.name)}<small>${esc(s.desc)}</small></button>`).join('') + (r.scenario ? `<p class="voice">Running: ${esc(r.scenario.name)}${r.scenario.act ? ` · ${esc(r.scenario.act)}` : ''}</p>` : '');
   $('#autoRow').hidden = r.mode !== 'sim';
+  $('#chaosBox').hidden = !r.chaos.length;
+  $('#chaosList').innerHTML = r.chaos.map(s => `<button class="btn${/crash|panic|halt|miss/.test(s.id) ? ' hot' : ''}" type="button" data-id="${esc(s.id)}" title="${esc(s.desc)}" ${r.scenario || r.session === 'closed' ? 'disabled' : ''}>${esc(s.name)}</button>`).join('');
   const L = r.lab;
   $<HTMLInputElement>('#labVol').value = String(L.vol); $('#volV').textContent = L.vol.toFixed(2).replace(/0$/, '') + '×';
   $<HTMLInputElement>('#labLiq').value = String(L.liq); $('#liqV').textContent = L.liq.toFixed(2).replace(/0$/, '') + '×';
@@ -853,6 +880,7 @@ function paintHost() {
   $<HTMLButtonElement>('#closeBtn').disabled = r.session === 'closed';
 }
 $('#hostBtn').onclick = () => { paintHost(); $('#hostPanel').hidden = false; $('#scrim').hidden = false; $('#dock').hidden = true; };
+$('#chaosList').addEventListener('click', e => { const b = (e.target as HTMLElement).closest('button') as HTMLElement | null; if (b?.dataset.id) { send({ k: 'host', action: 'chaos', id: b.dataset.id }); closeDrawers(); } });
 $('#scenList').addEventListener('click', e => { const b = (e.target as HTMLElement).closest('button') as HTMLElement | null; if (b?.dataset.id) { send({ k: 'host', action: 'scenario', id: b.dataset.id }); closeDrawers(); } });
 const lab = (l: Record<string, unknown>) => send({ k: 'host', action: 'lab', lab: l });
 $('#labVol').addEventListener('change', e => lab({ vol: +(e.target as HTMLInputElement).value }));

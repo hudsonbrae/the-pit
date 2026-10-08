@@ -16,6 +16,11 @@
 <div class="lobby" id="lobby" hidden>
   <div class="lobbybox">
     <div class="brand"><h1>The Pit</h1><p>A live trading floor · six Claude traders · your friends</p></div>
+    <ol class="how">
+      <li><b>Write the news.</b> Any headline you like.</li>
+      <li><b>Six Claude traders read it, argue and trade</b> on one live order book.</li>
+      <li><b>You trade against them.</b> Every AI call is scored 60 seconds later, in public.</li>
+    </ol>
     <button class="btn primary demo" id="demoBtn" type="button">Run the demo<small>Nine acts, about 2½ minutes. Bring a friend's phone.</small></button>
     <form class="lobbycard" id="createForm" autocomplete="off">
       <h2>Open a room</h2>
@@ -33,6 +38,7 @@
       <div class="newsform"><input id="codeIn" maxlength="5" placeholder="Room code" aria-label="Room code" autocapitalize="characters" spellcheck="false"><button class="btn" type="submit">Join</button><button class="btn" type="button" id="watchBtn" title="Watch without trading">Watch</button></div>
     </form>
     <p class="status" id="lobbyStatus" aria-live="polite"></p>
+    <section class="lobbycard legends" id="legends" hidden aria-label="Legends"><h2>Legends of the Pit</h2><ol id="legendList"></ol></section>
     <p class="fine">Simulated exchange, fake money. Nothing here places real orders or touches a brokerage.</p>
   </div>
 </div>
@@ -84,7 +90,7 @@
 
   <section class="intel" id="intel" aria-label="Market intelligence">
     <div class="ic regime"><span class="lbl">Regime</span><b id="regime">CALM</b><small id="regimeSince">derived from vol, flow, depth</small></div>
-    <div class="ic psych"><canvas id="psych" width="96" height="96" aria-label="Floor psychology: bull/bear by fear/greed"></canvas><div><span class="lbl">Floor psychology</span><b id="psychLbl">NEUTRAL</b><small id="split">AI floor: -</small></div></div>
+    <div class="ic psych"><canvas id="psych" width="96" height="96" aria-label="Floor psychology: bull/bear by fear/greed"></canvas><div><span class="lbl">Floor psychology</span><b id="psychLbl">NEUTRAL</b><small id="split">AI floor: -</small><small id="crowd"></small></div></div>
     <div class="ic flow"><span class="lbl">Order flow · 30s</span><div class="bal"><i class="b" id="flowB"></i><i class="s" id="flowS"></i></div><small id="flowTxt">-</small><div class="sigs" id="sigs"></div></div>
     <div class="ic teams"><span class="lbl">Humans vs AI floor</span><div class="vs"><span>HUMANS <b id="hRet">-</b></span><span>AI <b id="aRet">-</b></span></div><small id="leader">-</small></div>
     <div class="ic smart"><span class="lbl">Smart money</span><b id="smart">-</b><small id="smartSub">best-calibrated trader's position</small></div>
@@ -218,6 +224,7 @@
   <div class="db">
     <h3 class="sub">Invite</h3>
     <div class="links"><button class="btn" id="copyPlay" type="button">Copy player link</button><button class="btn" id="copyWatch" type="button">Copy watch link</button></div>
+    <div id="chaosBox"><h3 class="sub">Chaos controls</h3><p class="voice">One tap. Mechanical events hit the engine; headlines go through a real AI round (labelled SCENARIO) and the traders decide for themselves.</p><div class="chaos" id="chaosList"></div></div>
     <div id="scenBox"><h3 class="sub">Scenarios</h3><p class="voice">Scripted events with real causes: the engine, the order book and the six traders all react.</p><div class="scen" id="scenList"></div></div>
     <h3 class="sub">Lab</h3>
     <label class="slider"><span>Volatility <b id="volV">1.0×</b></span><input type="range" id="labVol" min="0.25" max="3" step="0.25" value="1"></label>
@@ -241,6 +248,7 @@
   </div>
 </div>
 
+<div class="prev" id="prev" hidden role="status"><span class="k">Previously on The Pit</span><div id="prevBody"></div><button class="x" id="prevX" type="button" aria-label="Close">×</button></div>
 <div class="ach" id="ach" hidden><b id="achTitle"></b><span id="achDesc"></span></div>
 <script type="module" src="/src/main.ts"></script>
 </body>

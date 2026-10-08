@@ -102,3 +102,17 @@ create table if not exists ai_usage_daily (
 
 alter table trader_stats   enable row level security;
 alter table ai_usage_daily enable row level security;
+
+-- ---- Added in the "go beyond" pass ----
+
+-- All-time records across every room (server/legends.ts). Holder is a display name, never a token.
+create table if not exists legends (
+  key        text primary key,
+  holder     text not null,
+  value      double precision not null,
+  detail     text,
+  room_code  text,
+  at         timestamptz not null default now()
+);
+
+alter table legends enable row level security;

@@ -486,3 +486,25 @@ body.watching .p-you .seg,body.watching .p-you .tradebtns,body.watching .p-desk 
 .rel b{font-weight:600}
 .rel .k{font:700 10px var(--mono);letter-spacing:.1em;padding:1px 5px;border-radius:2px;margin-right:6px;border:1px solid var(--line2)}
 .rel .k.twins{color:var(--up);border-color:var(--up)}.rel .k.rivals{color:var(--down);border-color:var(--down)}
+
+/* lobby: how it works, legends */
+.how{margin:0;padding:0 0 0 20px;display:grid;gap:4px;font:400 14px/1.4 var(--sans);color:var(--muted)}
+.how b{color:var(--fg);font-weight:600}
+.legends ol{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.legends li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;font:400 13px/1.35 var(--sans)}
+.legends li span{font:500 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);grid-column:1/-1}
+.legends li b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.legends li em{font:600 13px var(--mono);font-style:normal;color:var(--amber)}
+/* host chaos */
+.chaos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.chaos .btn{font:700 11px/1.2 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:10px 6px;min-height:44px}
+.chaos .btn.hot{border-color:var(--down);color:var(--down)}
+/* previously on */
+.prev{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:35;width:min(520px,calc(100% - 32px));background:var(--panel);border:1px solid var(--amber);border-radius:6px;padding:12px 44px 12px 14px;box-shadow:0 10px 40px rgba(0,0,0,.5);display:grid;gap:6px;animation:prevIn .5s ease-out}
+.prev .k{font:900 20px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--amber)}
+.prev #prevBody{display:grid;gap:4px;font:400 13.5px/1.4 var(--sans)}
+.prev #prevBody b{font:700 10.5px var(--mono);letter-spacing:.1em;color:var(--amber);margin-right:6px}
+.prev .x{position:absolute;top:8px;right:8px;background:transparent;border:1px solid var(--line2);border-radius:4px;width:32px;height:32px;font:600 15px var(--mono)}
+@keyframes prevIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
+@media (max-width:640px){.prev{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
+.rcard.rec{border:1px solid var(--amber)}

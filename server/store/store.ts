@@ -10,6 +10,8 @@ export interface RoomRow { code: string; mode: Mode; ticker: string; host_token:
 export interface PlayerRow { room_code: string; token: string; pid: string; name: string; color: string; cash: number; shares: number; cost: number; start_value: number }
 export interface NewsRow { room_code: string; no: number | null; kind: string; origin: string | null; by_name: string | null; headline: string; source: string | null; url: string | null; published_at: string | null; impact: number | null; read: string | null; model: string | null; tokens_in: number | null; tokens_out: number | null }
 export interface LeaderRow { room_code: string; name: string; pnl: number; is_ai: boolean }
+/** One all-time record (see server/legends.ts). */
+export interface LegendRow { key: string; holder: string; value: number; detail: string; room_code: string; at: string }
 
 export interface Store {
   readonly kind: 'memory' | 'supabase';
@@ -26,6 +28,8 @@ export interface Store {
   saveStats(code: string, agentId: string, stats: TraderStats, lab: string): Promise<void>;
   loadUsage(day: string): Promise<DayUsage | null>;
   saveUsage(u: DayUsage): Promise<void>;
+  loadLegends(): Promise<LegendRow[]>;
+  saveLegend(r: LegendRow): Promise<void>;
 }
 
 export class MemoryStore implements Store {
@@ -50,6 +54,9 @@ export class MemoryStore implements Store {
   async saveStats(code: string, agentId: string, stats: TraderStats, lab: string) { const m = this.stats.get(code) ?? {}; m[agentId] = { stats: structuredClone(stats), lab }; this.stats.set(code, m); }
   async loadUsage(day: string) { return this.usage?.day === day ? { ...this.usage } : null; }
   async saveUsage(u: DayUsage) { this.usage = { ...u }; }
+  legends = new Map<string, LegendRow>();
+  async loadLegends() { return [...this.legends.values()].map(r => ({ ...r })); }
+  async saveLegend(r: LegendRow) { this.legends.set(r.key, { ...r }); }
 }
 
 /**
@@ -82,4 +89,6 @@ export class SafeStore implements Store {
   saveStats(code: string, a: string, s: TraderStats, lab: string) { return this.run('saveStats', () => this.inner.saveStats(code, a, s, lab), undefined); }
   loadUsage(day: string) { return this.run('loadUsage', () => this.inner.loadUsage(day), null); }
   saveUsage(u: DayUsage) { return this.run('saveUsage', () => this.inner.saveUsage(u), undefined); }
+  loadLegends() { return this.run('loadLegends', () => this.inner.loadLegends(), [] as LegendRow[]); }
+  saveLegend(r: LegendRow) { return this.run('saveLegend', () => this.inner.saveLegend(r), undefined); }
 }

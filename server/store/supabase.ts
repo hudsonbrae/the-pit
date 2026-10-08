@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { LeaderRow, NewsRow, PlayerRow, RoomRow, Store } from './store.js';
+import type { LeaderRow, LegendRow, NewsRow, PlayerRow, RoomRow, Store } from './store.js';
 import type { TraderStats } from '../intel/stats.js';
 import type { DayUsage } from '../costguard.js';
 
@@ -65,4 +65,9 @@ export class SupabaseStore implements Store {
     const { error } = await this.db.from('ai_usage_daily').upsert({ day: u.day, rounds: u.rounds, small: u.small, tokens_in: u.tokensIn, tokens_out: u.tokensOut, cost_usd: u.cost, updated_at: new Date().toISOString() }, { onConflict: 'day' });
     this.warn('saveUsage', error);
   }
+  async loadLegends() {
+    const { data, error } = await this.db.from('legends').select('key,holder,value,detail,room_code,at');
+    this.warn('loadLegends', error); return (data as LegendRow[]) ?? [];
+  }
+  async saveLegend(r: LegendRow) { const { error } = await this.db.from('legends').upsert(r, { onConflict: 'key' }); this.warn('saveLegend', error); }
 }
