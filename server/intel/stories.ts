@@ -43,7 +43,7 @@ export class Storyteller {
     const s: StoryV = { id: ++this.seq, kind, text, weight, clock: clock.slice(0, 5), who: opts.who, title: opts.title ?? (weight >= 2 ? TITLES[kind.split(':')[0]] : undefined) };
     this.stories.unshift(s);
     // the timeline (weight 1) is dense; keep it from pushing the real moments out
-    if (this.stories.length > 160) { const i = this.stories.findLastIndex(x => x.weight === 1); this.stories.splice(i >= 100 ? i : 160, 1); }
+    if (this.stories.length > 160) { const i = this.stories.findLastIndex(x => x.weight === 1); this.stories.splice(i >= 0 ? i : 160, 1); }
     if (this.stories.length > 160) this.stories.length = 160;
     this.emit(s);
   }

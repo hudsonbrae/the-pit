@@ -79,7 +79,7 @@ async function tick() {
       $('#dAgents').innerHTML = tbl([['Trader', a => e(a.name)], ['Shares', a => a.sh], ['P&L', a => '<span class="' + (a.pnl >= 0 ? 'ok' : 'bad') + '">' + a.pnl + '</span>'], ['Call', a => e((a.call || '-') + ' ' + a.conv + '%')], ['Budget', a => a.budget], ['Record', a => e(a.record)], ['Last', a => e(a.thinking || a.last || '-')], ['Badges', a => e(a.badges.join(' '))]], x.agents);
       $('#dPlayers').innerHTML = tbl([['Name', p => e(p.name) + (p.host ? ' (host)' : '')], ['Online', p => p.online], ['Shares', p => p.sh], ['P&L', p => p.pnl]], x.players);
       $('#dBook').innerHTML = tbl([['Bid', l => l[0] ? l[0][1] + ' @ ' + l[0][0] : ''], ['Ask', l => l[1] ? l[1][1] + ' @ ' + l[1][0] : '']], Array.from({ length: 5 }, (_, i) => [x.book.bids[i], x.book.asks[i]]));
-      $('#dStories').textContent = x.stories.join('\n');
+      $('#dStories').textContent = x.stories.join('\\n');
       const s = sel.science;
       $('#dSci').innerHTML = e(s.verdict) + '<br>opening ' + (s.debate.open ?? '-') + '% · final ' + (s.debate.final ?? '-') + '% · no debate ' + (s.single.acc ?? '-') + '% (' + s.single.n + ')<br>herding calm ' + (s.herding.calm ?? '-') + ' · stressed ' + (s.herding.stressed ?? '-') + '<br>desk direction ' + (s.desk.acc ?? '-') + '% of ' + s.desk.n;
     }

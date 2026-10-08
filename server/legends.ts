@@ -12,7 +12,7 @@ export const LEGENDS: Record<LegendKey, { title: string; unit: '$' | '%' | 's' |
   human_session: { title: 'Best human session', unit: '$', min: 1 },
   slayer: { title: 'Biggest win over the AI floor', unit: 'pts', min: 0.25 },
   human_trade: { title: 'Best single human trade', unit: '$', min: 1 },
-  fastest: { title: 'Fastest reaction to a headline', unit: 's', lower: true, min: 0 },
+  fastest: { title: 'Fastest reaction to a headline', unit: 's', lower: true, min: 1 },
   ai_session: { title: 'Best AI trader session', unit: '$', min: 1 },
   ai_streak: { title: 'Longest AI calling streak', unit: 'calls', min: 3 },
   wildest: { title: 'Wildest session (high to low)', unit: '%', min: 3 },
@@ -29,13 +29,18 @@ export class Legends {
 
   async hydrate() {
     if (!this.store) return;
-    for (const r of await this.store.loadLegends()) if (r.key in LEGENDS) this.rows.set(r.key as LegendKey, r);
+    // keep whichever is better if a record was offered before the database answered
+    for (const r of await this.store.loadLegends()) {
+      if (!Object.hasOwn(LEGENDS, r.key) || !Number.isFinite(r.value)) continue;
+      const k = r.key as LegendKey, cur = this.rows.get(k);
+      if (!cur || (LEGENDS[k].lower ? r.value < cur.value : r.value > cur.value)) this.rows.set(k, r);
+    }
   }
 
   /** Records `value` if it beats the standing record. Returns true for a new record. */
   offer(key: LegendKey, holder: string, value: number, detail: string, room: string): boolean {
     const def = LEGENDS[key], cur = this.rows.get(key);
-    if (!Number.isFinite(value) || (def.lower ? value <= def.min : value < def.min)) return false;
+    if (!Number.isFinite(value) || value < def.min) return false;
     if (cur && (def.lower ? value >= cur.value : value <= cur.value)) return false;
     const row: LegendRow = { key, holder: holder.slice(0, 20), value, detail: detail.slice(0, 160), room_code: room, at: new Date().toISOString() };
     this.rows.set(key, row);
