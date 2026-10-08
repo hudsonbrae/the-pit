@@ -52,6 +52,11 @@ const TYPES: Record<string, string> = {
 };
 
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+/** connect-src: same host only, with ws/wss spelled out (older Safari doesn't match them with 'self'). */
+const cspFor = (host: string | undefined) => {
+  const h = String(host ?? '').toLowerCase().replace(/[^a-z0-9.:\-\[\]]/g, '');
+  return h ? CSP.replace("connect-src 'self'", `connect-src 'self' ws://${h} wss://${h}`) : CSP;
+};
 const SECURITY_HEADERS: Record<string, string> = {
   'content-security-policy': CSP,
   'x-content-type-options': 'nosniff',
@@ -140,7 +145,7 @@ export function createApp(o: AppOverrides = {}): App {
     try {
       const data = await readFile(file);
       const immutable = file.startsWith(join(root, 'assets') + sep);
-      res.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream', 'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache', ...SECURITY_HEADERS });
+      res.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream', 'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache', ...SECURITY_HEADERS, 'content-security-policy': cspFor(req.headers.host) });
       res.end(req.method === 'HEAD' ? undefined : data);
     } catch {
       res.writeHead(404, { 'content-type': 'text/plain' }); res.end('Not built yet. Run: npm run build');
@@ -180,7 +185,7 @@ export function createApp(o: AppOverrides = {}): App {
       if (url.pathname === '/admin') {
         // The page itself holds no data; it asks /api/admin with the token from the URL fragment (#token=…),
         // which browsers never send to the server or put in logs.
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...SECURITY_HEADERS, 'referrer-policy': 'no-referrer', 'content-security-policy': CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'") });
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...SECURITY_HEADERS, 'referrer-policy': 'no-referrer', 'content-security-policy': cspFor(req.headers.host).replace("script-src 'self'", "script-src 'self' 'unsafe-inline'") });
         return res.end(adminHtml);
       }
       if (url.pathname === '/api/rooms' && req.method === 'POST') {
