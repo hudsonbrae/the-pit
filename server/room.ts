@@ -24,13 +24,14 @@ import type { Store, PlayerRow } from './store/store.js';
 import type { MarketHub, FeedListener } from './market/hub.js';
 import type { Headline, MarketStatus, Quote } from './market/provider.js';
 import { normHeadline } from './market/hub.js';
-import { Scorebook, categorise, stars, type TraderStats } from './intel/stats.js';
+import { Scorebook, actualOf, categorise, stars, type CallRec, type TraderStats } from './intel/stats.js';
+import { Science } from './intel/science.js';
 import { MarketIntel } from './intel/market.js';
 import { Storyteller, ACHIEVEMENTS } from './intel/stories.js';
 import { SCENARIOS, scenarioList, fill as fillScenario, type Scenario } from './scenarios.js';
 import type {
   AccV, AgentV, ChatterV, ClientMsg, Delta, FillV, IntelV, LabV, LevelV, MarkerV, Mode, NewsV, Origin, PlayerV, RecapV, RoomInfo, RoundState,
-  ServerMsg, Snapshot, TradeV, TraderStatsV, AchievementId, Side,
+  ServerMsg, Snapshot, TradeV, TraderStatsV, AchievementId, Side, ScienceV,
 } from '../shared/protocol.js';
 import { DEFAULT_LAB } from '../shared/protocol.js';
 import { f2, fi, money } from '../shared/format.js';
@@ -129,6 +130,17 @@ export class Room {
   private lastResolved = new Map<string, { head: string; correct: boolean }>();
   private scenKnobs = { vol: 1, liq: 1, spread: 1, crowd: 1 };
   private lastAuto = 0;
+  private lastFlowSig: string | null = null;
+  /** The running experiment: debate vs no debate, herding, relationships (kept across sessions, like memory). */
+  sci = new Science();
+  /** This session: peak equity and worst drawdown per account; calls made in the current round; reaction times. */
+  private peaks = new Map<string, { peak: number; dd: number }>();
+  private roundRecs: CallRec[] | null = null;
+  private headT = -1e9;
+  private reacted = new Set<string>();
+  private reactions: { name: string; secs: number }[] = [];
+  private bestCall: RecapV['bestCall'] = null;
+  private worstCall: RecapV['worstCall'] = null;
   private lastReset = 0;
   private lastWrap = 0;
   private frameNo = 0;
@@ -195,6 +207,7 @@ export class Room {
     this.intel = new MarketIntel();
     this.sb.pending = []; this.sb.latest.clear();
     this.regimesSeen = ['CALM'];
+    this.peaks.clear(); this.reactions = []; this.reacted.clear(); this.headT = -1e9; this.bestCall = null; this.worstCall = null;
     this.pendTrades = []; this.candleSent = S.cur!.idx; this.haltSig = ''; this.newFills = []; this.newMarkers = []; this.pendEv = [];
   }
 
@@ -256,13 +269,19 @@ export class Room {
   private pnlFrac(id: string) { const a = this.eng.S.accounts[id]; return a ? this.pnl(id) / a.start : 0; }
   private lastHeadline() { return this.news.find(n => n.kind === 'news')?.text ?? 'no headline'; }
 
+  /** Measured relationships for the prompt: who has moved together, who takes the other side. */
+  private relationsLine() {
+    const r = this.sci.view().relations;
+    return r.length ? `. Measured on this floor: ${r.map(x => x.kind === 'twins' ? `${x.a} and ${x.b} traded the same way in ${Math.round(x.rate * x.n)} of ${x.n} rounds` : `${x.a} and ${x.b} took opposite sides in ${Math.round(x.rate * x.n)} of ${x.n} rounds`).join('; ')}` : '';
+  }
+
   ctx(headline?: string | null): PromptCtx {
     const cat = headline ? categorise(headline) : null;
     return {
       co: this.co, eng: this.eng, news: this.news, agents: this.agents, pnl: this.pnl,
       real: this.real ? { price: this.real.price, marketOpen: this.real.marketOpen } : null,
       memory: this.lab.memory ? (id => this.sb.record4prompt(id, this.pnlFrac(id), this.lab.appetite, cat)) : null,
-      floor: this.lab.memory ? this.sb.floorLine() : undefined,
+      floor: this.lab.memory ? this.sb.floorLine() + this.relationsLine() : undefined,
       appetite: this.lab.appetite,
       mood: `regime ${this.intelV?.regime.name ?? 'CALM'}, floor mood ${this.intelV?.psych.label ?? 'NEUTRAL'}${this.intelV?.book.signals.length ? `, order book: ${this.intelV.book.signals.join(', ').toLowerCase()}` : ''}.`,
     };
@@ -316,6 +335,8 @@ export class Room {
       out[a.id] = {
         calls: s.calls, correct: s.correct, streak: s.streak, trades: s.trades, wins: s.wins, pnl: Math.round(s.pnl), best: s.best, worst: s.worst,
         avgConv: s.calls ? Math.round(s.convSum / s.calls) : 0, recent: s.recent, stars: stars(s), badges: this.sb.badges(a.id), calibration: this.sb.calibration(a.id),
+        roi: +(this.pnlFrac(a.id) * 100).toFixed(2), maxDD: +((this.peaks.get(a.id)?.dd ?? 0) * 100).toFixed(2),
+        tend: { fol: [s.fol.c, s.fol.n], fade: [s.fade.c, s.fade.n], stress: [s.stress.c, s.stress.n] },
       };
     }
     return out;
@@ -374,7 +395,7 @@ export class Room {
       candles: S.candles.slice(-300).map(c => ({ ...c })),
       halts: S.halts.map(h => ({ ...h })), fills: this.fills.slice(), markers: this.markers.slice(),
       agents: this.agents.map(a => this.agentV(a)), players: this.playersV(), wire: this.news.slice(0, 40), chatter: this.chatter.slice(), round: this.round,
-      stories: this.tell.stories.slice(0, 30), stats: this.statsV(), oracle: this.sb.oracle(), intel: this.intelV,
+      stories: this.tell.stories.slice(0, 80), stats: this.statsV(), oracle: this.sb.oracle(), intel: this.intelV, science: this.sci.view(),
     };
   }
 
@@ -396,7 +417,8 @@ export class Room {
     const m: ServerMsg = { k: 'toast', text, area };
     if ('conns' in p) p.conns.forEach(c => this.sendTo(c, m)); else this.sendTo(p, m);
   }
-  private sendStats() { this.broadcast({ k: 'stats', stats: this.statsV(), oracle: this.sb.oracle() }); }
+  private sendStats() { this.broadcast({ k: 'stats', stats: this.statsV(), oracle: this.sb.oracle(), science: this.sci.view() }); }
+  science(): ScienceV { return this.sci.view(); }
 
   // ---------- the loop ----------
   private onTrade(tr: Trade) {
@@ -439,7 +461,16 @@ export class Room {
     const clk = this.eng.clock(), t = this.eng.S.t;
     if (this.regimesSeen.at(-1) !== v.regime.name) { this.regimesSeen.push(v.regime.name); if (this.regimesSeen.length > 30) this.regimesSeen.shift(); }
     this.tell.onIntel(this.ticker, v.regime.name, v.stats.r30, v.book.depthRatio, clk, t);
+    this.tell.onPrice(this.ticker, this.eng.S.last, clk, t);
+    const flow = v.book.signals.find(x => /AGGRESSIVE|SWEPT/.test(x));
+    if (flow && flow !== this.lastFlowSig) this.tell.tl('flow', `Order flow: ${flow.toLowerCase()} (imbalance ${v.book.imb > 0 ? '+' : ''}${Math.round(v.book.imb * 100)}%).`, clk, t, 60);
+    this.lastFlowSig = flow ?? null;
     const rows = this.standings();
+    for (const r of rows) {
+      const a = this.eng.S.accounts[r.id]; if (!a) continue;
+      const eq = a.start + r.pnl, pk = this.peaks.get(r.id) ?? { peak: eq, dd: 0 };
+      pk.peak = Math.max(pk.peak, eq); pk.dd = Math.max(pk.dd, (pk.peak - eq) / a.start); this.peaks.set(r.id, pk);
+    }
     this.tell.onStandings(rows, v.teams.ai.pnl, v.teams.human.pnl, v.teams.human.n, clk, t);
     return v;
   }
@@ -471,17 +502,27 @@ export class Room {
     const S = this.eng.S;
     const done = this.sb.resolve(S.t, S.last);
     for (const r of done) {
+      if (r.ai) {
+        this.sci.onResolved(r, actualOf(r.ret));
+        const row = { name: this.nameOf(r.who), call: r.call, conviction: r.conviction, ret: +(r.ret * 100).toFixed(2), head: r.head.slice(0, 120) };
+        if (r.correct && r.call !== 'flat' && (!this.bestCall || r.conviction * Math.abs(r.ret) > this.bestCall.conviction * Math.abs(this.bestCall.ret / 100))) this.bestCall = row;
+        if (!r.correct && (!this.worstCall || r.conviction > this.worstCall.conviction || (r.conviction === this.worstCall.conviction && Math.abs(r.ret) * 100 > Math.abs(this.worstCall.ret)))) this.worstCall = row;
+      }
       const s = this.sb.get(r.who);
       this.tell.onResolved(r, this.nameOf(r.who), s.streak, this.ticker, this.eng.clock(), S.t);
       if (r.ai) this.lastResolved.set(r.who, { head: r.head, correct: r.correct });
       if (r.ai) this.statsDirty = true;
     }
-    if (done.some(r => r.ai)) this.sendStats();
+    const ai = done.filter(r => r.ai);
+    if (ai.length) {
+      this.sendStats();
+      this.tell.tl('scored', `Calls scored: ${ai.map(r => `${this.nameOf(r.who)} ${r.correct ? '✓' : '✗'}`).join(' · ')}.`, this.eng.clock(), S.t);
+    }
     let wire = false;
     while (this.newsMoves.length && S.t - this.newsMoves[0].t >= 240) {
       const m = this.newsMoves.shift()!;
       const n = this.news.find(x => x.id === m.id);
-      if (n) { n.moved = +((S.last / m.px - 1) * 100).toFixed(2); wire = true; }
+      if (n) { n.moved = +((S.last / m.px - 1) * 100).toFixed(2); wire = true; if (n.impact != null) this.sci.onHeadlineMoved(n.impact, n.moved); }
     }
     if (wire) this.sendWire();
     if (this.statsDirty && Date.now() - this.lastStatsSave > 10_000) void this.saveStats();
@@ -683,6 +724,15 @@ export class Room {
       this.noteTrade(p.id, side, res.filled, res.avg);
       this.sb.record({ who: p.id, ai: false, t: this.eng.S.t, px: res.avg, call: side === 'buy' ? 'up' : 'down', conviction: 0, action: side, qty: res.filled, fill: res.avg, head: this.lastHeadline(), category: 'other', clock: this.eng.clock().slice(0, 5) });
       this.tell.onFirstFill(p.id, p.name, this.eng.clock(), this.eng.S.t);
+      this.tell.onHumanTrade(p.id, side, res.filled);
+      const dt = this.eng.S.t - this.headT;
+      if (dt < 240 && !this.reacted.has(p.id)) {
+        this.reacted.add(p.id);
+        const secs = +(dt * 0.25).toFixed(1);
+        this.reactions.push({ name: p.name, secs }); if (this.reactions.length > 200) this.reactions.shift();
+        this.tell.tl('react:' + p.id, `${p.name} reacted ${secs}s after the headline: ${side === 'buy' ? 'bought' : 'sold'} ${fi(res.filled)}.`, this.eng.clock(), this.eng.S.t);
+      }
+      if (res.filled >= 2000) this.tell.tl('big', `${p.name} ${side === 'buy' ? 'bought' : 'sold'} ${fi(res.filled)} @ ${f2(res.avg)}.`, this.eng.clock(), this.eng.S.t);
     }
     p.dirty = true;
     this.toast(p, res.queued ? `Halted: your ${side} of ${fi(qty)} is queued for the reopen.` :
@@ -760,7 +810,7 @@ export class Room {
     if ('act' in step) {
       this.currentAct = step.act;
       this.broadcast({ k: 'act', title: step.act, sub: step.sub });
-      this.tell.add('act', `${step.act}: ${step.sub}`, 2, clk, S.t);
+      this.tell.add('act', step.sub, 2, clk, S.t, { title: step.act.toUpperCase() });
       this.broadcast({ k: 'room', room: this.info() });
     } else if ('news' in step) {
       sc.block = 'round';
@@ -800,7 +850,7 @@ export class Room {
       const sub = rows.length ? `Right: ${right.join(', ') || 'nobody'}. Wrong: ${wrong.join(', ') || 'nobody'}.` : (step.sub ?? 'Calls are being scored.');
       this.currentAct = step.scoreboard;
       this.broadcast({ k: 'act', title: step.scoreboard, sub });
-      this.tell.add('act', `${step.scoreboard}: ${sub}`, 3, clk, S.t);
+      this.tell.add('act', sub, 3, clk, S.t, { title: step.scoreboard.toUpperCase() });
       this.broadcast({ k: 'room', room: this.info() });
     }
   }
@@ -833,7 +883,7 @@ export class Room {
     if (!this.aiOn() || this.narrated) return stream('', true);
     this.narrated = true;                                     // one narration per session, however often the bell rings
     const board = recap.standings.map(r => `<player>${quoteUntrusted(r.name, 20)}</player>${r.human ? ' (human)' : ''}: ${money(r.pnl)}`).join('\n');
-    const moments = this.tell.stories.slice().reverse().filter(s => s.weight >= 2).slice(-12).map(s => `${s.clock} ${quoteUntrusted(s.text, 200)}`).join('\n');
+    const moments = this.tell.stories.slice().reverse().filter(s => s.weight >= 2).slice(-12).map(s => `${s.clock} ${s.title ? s.title + ': ' : ''}${quoteUntrusted(s.text, 200)}`).join('\n');
     const pr = wrapPrompt(this.ctx(), board, moments);
     const r = await this.small(pr.system, pr.user, this.deps.cfg.models.narrator, full => stream(full, false), 700, 'narrator');
     stream(r.text, true, r.err ? 'The narrator was cut off.' : undefined);
@@ -855,6 +905,8 @@ export class Room {
       biggestHeadline: big ? { text: big.text, impact: big.impact!, moved: big.moved ?? null } : null,
       mostSplit: this.tell.stories.find(s => s.kind === 'split')?.text ?? null,
       biggestTrade: this.biggestTrade, regimes: this.regimesSeen.slice(), moments, achievements: ach,
+      science: this.sci.view(), bestCall: this.bestCall, worstCall: this.worstCall,
+      fastest: this.reactions.length ? this.reactions.reduce((a, b) => (b.secs < a.secs ? b : a)) : null,
     };
   }
 
@@ -940,7 +992,8 @@ export class Room {
       ? { id: ++this.newsId, kind: 'check', time: this.eng.clock(), text: 'Floor check: traders reassess', read: '', origin: 'PLAYER', by: o.byName ?? undefined }
       : { id: ++this.newsId, kind: 'news', no: ++this.newsNo, time: this.eng.clock(), text, impact: null, read: '', origin: o.origin, by: o.byName ?? undefined, source: o.source, at: o.at, url: o.url, debate };
     this.news.unshift(item); if (this.news.length > 100) this.news.length = 100;
-    if (!isCheck) { this.addMarker(item.no!); this.newsMoves.push({ id: item.id, t: this.eng.S.t, px: this.eng.S.last }); if (this.newsMoves.length > 50) this.newsMoves.shift(); }
+    this.roundRecs = [];
+    if (!isCheck) { this.headT = this.eng.S.t; this.reacted.clear(); this.addMarker(item.no!); this.newsMoves.push({ id: item.id, t: this.eng.S.t, px: this.eng.S.last }); if (this.newsMoves.length > 50) this.newsMoves.shift(); }
     const cat = isCheck ? 'other' : categorise(text);
     this.agents.forEach(a => {
       a.thinking = isCheck ? 'Reviewing…' : 'Reading the headline…'; a.opening = null; a.changed = null;
@@ -948,6 +1001,7 @@ export class Room {
     });
     this.sendWire(); this.sendRound();
     this.broadcast({ k: 'thinking', text: isCheck ? 'Reviewing…' : 'Reading the headline…' });
+    this.tell.tl('news', isCheck ? 'Floor check: the AI floor reassesses.' : `#${item.no} ${o.origin}: “${text.length > 90 ? text.slice(0, 87) + '…' : text}”${debate ? ' · the floor will debate' : ''}`, this.eng.clock(), this.eng.S.t);
 
     const done = new Set<string>();
     let desk: Desk | null = null;
@@ -958,17 +1012,19 @@ export class Room {
       if (isCheck) { item.read = d.read; this.sendWire(); return; }
       item.impact = d.impact; item.read = d.read; item.deskKind = d.kind; item.category = d.category;
       this.eng.shock(d.impact, d.speed);
+      this.tell.tl('desk', `Desk: ${d.impact > 0 ? '+' : ''}${d.impact.toFixed(1)}% to fair value, ${d.kind}, ${d.category}.`, this.eng.clock(), this.eng.S.t);
       this.sendWire();
       this.round = { ...this.round, phase: debate ? 'debate' : 'deciding', status: debate ? 'Desk has read it. The floor is debating…' : 'Desk has read it. Traders are deciding…' };
       this.sendRound(Math.abs(d.impact) >= 8 ? (d.impact > 0 ? 'up' : 'down') : undefined);
     };
     // traders act one after another, ~0.7s apart, so the market makers can refill between them
     let chain = Promise.resolve();
-    const decided: { id: string; name: string; action: string }[] = [];
+    const views = new Map<string, Decision>();          // floor debate: opening views by trader
+    const decided: { id: string; name: string; action: string; conviction: number; call: string }[] = [];
     const applyTrade = (d: Decision) => {
       if (done.has(d.id)) return; done.add(d.id);
       chain = chain.then(async () => {
-        try { if (!this.disposed) { this.execAgent(d, isCheck ? null : text, getDesk()?.category ?? cat); decided.push({ id: d.id, name: this.nameOf(d.id), action: d.action }); } }
+        try { if (!this.disposed) { this.execAgent(d, isCheck ? null : text, getDesk()?.category ?? cat, { debate, opening: views.get(d.id)?.call ?? null }); decided.push({ id: d.id, name: this.nameOf(d.id), action: d.action, conviction: d.conviction, call: d.call }); } }
         catch (e) { console.warn(JSON.stringify({ ev: 'exec_error', error: String((e as Error)?.message) })); }
         await sleep(this.deps.cfg.roundPaceMs);
       });
@@ -1010,7 +1066,6 @@ export class Room {
         // ---- floor debate: phase 1, opening views (nothing executes) ----
         this.stats.debates++;
         if (o.debateAct) this.broadcast({ k: 'act', title: o.debateAct, sub: 'Six AI traders argue before anyone trades.' });
-        const views = new Map<string, Decision>();
         const r1 = await this.callAI(SYSTEM_DEBATE_OPEN, user, this.deps.cfg.models.debate, effort, maxTok, line => {
           const obj = parseLine(line); if (!obj) return;
           if (obj.type === 'desk') { const d = validateDesk(obj); if (d) applyDesk(d); }
@@ -1061,7 +1116,12 @@ export class Room {
       off.trades.forEach(t => { if (!done.has(t.id)) { const d = validateDecision(t as unknown as Record<string, unknown>, this.limits); if (d) applyTrade(d); } });
     } else if (usedAI) this.stats.aiRounds++;
     await chain;
-    this.tell.onRoundEnd(isCheck ? null : text, decided, this.eng.clock(), this.eng.S.t);
+    this.tell.onRoundEnd(isCheck ? null : text, decided, this.ticker, this.eng.clock(), this.eng.S.t);
+    const nb = decided.filter(d => d.action === 'buy').length, ns = decided.filter(d => d.action === 'sell').length;
+    const maj = nb >= 4 ? 'buy' : ns >= 4 ? 'sell' : null;
+    for (const r of this.roundRecs ?? []) r.floor = !maj || r.action === 'hold' ? null : r.action === maj ? 'with' : 'against';
+    this.roundRecs = null;
+    this.sci.onRound(this.intelV.regime.name, decided);
     void this.deps.store.logNews({
       room_code: this.code, no: item.no ?? null, kind: item.kind, origin: item.origin ?? null, by_name: item.by ?? null, headline: item.text,
       source: item.source ?? null, url: item.url ?? null, published_at: item.at ?? null, impact: item.impact ?? null, read: item.read ?? null,
@@ -1081,7 +1141,7 @@ export class Room {
   }
 
   /** Executes one validated decision. The engine decides what actually fills. */
-  execAgent(d: Decision, headline: string | null, category: string) {
+  execAgent(d: Decision, headline: string | null, category: string, x: { debate?: boolean; opening?: Decision['call'] | null } = {}) {
     const S = this.eng.S;
     const a = this.agents.find(x => x.id === d.id)!;
     this.eng.cancel(a.id);
@@ -1106,13 +1166,16 @@ export class Room {
       newLesson = true;
       void this.deps.store.saveLessons(this.code, a.id, a.lessons);
     }
-    this.sb.record({ who: a.id, ai: true, t: S.t, px: S.last, call: d.call, conviction: d.conviction, action: d.action, qty: filled, fill: avgFill, head: headline || 'Floor check', category, clock: this.eng.clock().slice(0, 5) });
+    const rec: CallRec = { who: a.id, ai: true, t: S.t, px: S.last, call: d.call, conviction: d.conviction, action: d.action, qty: filled, fill: avgFill, head: headline || 'Floor check', category, clock: this.eng.clock().slice(0, 5), debate: !!x.debate, opening: x.opening ?? null, regime: this.intelV.regime.name };
+    this.sb.record(rec);
+    this.roundRecs?.push(rec);
     a.callPx = S.last; a.callPnl = this.pnl(a.id);
     a.lastAct = { side: d.action, label, fill, queued };
     a.conv = d.conviction; a.thought = d.thought; a.thinking = null; a.call = d.call; a.signals = d.signals;
     a.log.unshift({ time: this.eng.clock().slice(0, 5), head: headline || 'Floor check', act: `${label} · calls ${d.call.toUpperCase()} (${d.conviction}%)`, thought: a.thought });
     if (a.log.length > 30) a.log.length = 30;
     this.broadcast({ k: 'agent', a: this.agentV(a), flash: true, newLesson });
+    this.tell.tl('ai:' + a.id, `${a.name} ${label} · calls ${d.call.toUpperCase()} ${d.conviction}%${fill ? ' · ' + fill : ''}.`, this.eng.clock(), S.t);
     this.flush();
   }
 
@@ -1162,7 +1225,7 @@ export class Room {
     this.lastWrap = Date.now();
     stream('Writing…', false);
     const board = this.standings().map(r => `<player>${quoteUntrusted(r.name, 20)}</player>${r.human ? ' (human player)' : ''}: P&L ${money(r.pnl)}, holds ${fi(this.eng.S.accounts[r.id]?.sh ?? 0)} sh`).join('\n');
-    const moments = this.tell.stories.slice().reverse().filter(s => s.weight >= 2).slice(-10).map(s => `${s.clock} ${quoteUntrusted(s.text, 200)}`).join('\n');
+    const moments = this.tell.stories.slice().reverse().filter(s => s.weight >= 2).slice(-10).map(s => `${s.clock} ${s.title ? s.title + ': ' : ''}${quoteUntrusted(s.text, 200)}`).join('\n');
     const pr = wrapPrompt(this.ctx(), board, moments);
     const r = await this.small(pr.system, pr.user, this.deps.cfg.models.narrator, full => stream(full, false), 700, 'wrap');
     if (r.err) stream(r.text, true, r.err === 'cap' ? 'Today’s AI budget is used up.' : 'The wrap could not be finished. Try again in a moment.');
@@ -1193,6 +1256,7 @@ export class Room {
       ...g, frameMsAvg: +this.perf.frameMsAvg.toFixed(3), frameMsMax: +this.perf.frameMsMax.toFixed(2), msgsSent: this.perf.msgs, mbSent: +(this.perf.bytes / 1e6).toFixed(1),
       quoteAgeSec: feed?.quote ? Math.round((Date.now() - feed.quote.time) / 1000) : null, pendingCalls: this.sb.pending.length,
       memory: Object.fromEntries(AGENTS.map(a => [a.id, { calls: this.sb.get(a.id).calls, correct: this.sb.get(a.id).correct }])),
+      science: this.sci.view(),
     };
   }
 

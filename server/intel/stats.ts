@@ -16,6 +16,9 @@ export const BUCKETS = [[0, 50], [50, 70], [70, 90], [90, 101]] as const;
 export interface CallRec {
   who: string; ai: boolean; t: number; px: number; call: Call; conviction: number;
   action: string; qty: number; fill: number | null; head: string; category: string; clock: string;
+  /** Debated rounds: the opening view's call. */ opening?: Call | null; debate?: boolean;
+  /** Set at the end of the round: did this trader go with the AI majority or against it? */ floor?: 'with' | 'against' | null;
+  /** Regime when the call was made. */ regime?: string;
 }
 export interface Resolved extends CallRec { endPx: number; ret: number; correct: boolean; pnl: number }
 
@@ -26,6 +29,8 @@ export interface TraderStats {
   best: { pnl: number; head: string } | null; worst: { pnl: number; head: string } | null;
   convSum: number; recent: boolean[];
   byCat: Record<string, { n: number; correct: number; last?: { head: string; action: string; call: Call; correct: boolean; clock: string } }>;
+  /** Tendencies: accuracy when following the floor, fading it, and in stressed regimes. */
+  fol: { n: number; c: number }; fade: { n: number; c: number }; stress: { n: number; c: number };
 }
 
 export interface TraderRecord { summary: string; budget: number; budgetWhy: string; similar: string | null }
@@ -33,7 +38,11 @@ export interface TraderRecord { summary: string; budget: number; budgetWhy: stri
 export const emptyStats = (): TraderStats => ({
   calls: 0, correct: 0, streak: 0, buckets: BUCKETS.map(() => ({ n: 0, correct: 0 })),
   trades: 0, wins: 0, pnl: 0, best: null, worst: null, convSum: 0, recent: [], byCat: {},
+  fol: { n: 0, c: 0 }, fade: { n: 0, c: 0 }, stress: { n: 0, c: 0 },
 });
+
+export const actualOf = (ret: number): Call => ret > FLAT_BAND ? 'up' : ret < -FLAT_BAND ? 'down' : 'flat';
+const STRESSED = new Set(['PANIC', 'EUPHORIA', 'LIQUIDITY CRUNCH', 'VOLATILE', 'HALTED']);
 
 /** Accuracy shrunk toward 50% so two lucky calls don't make an oracle. */
 export const shrunk = (s: TraderStats) => (s.correct + 2) / (s.calls + 4);
@@ -84,7 +93,7 @@ export class Scorebook {
     for (const c of this.pending) {
       if (t - c.t < HORIZON_TICKS) { keep.push(c); continue; }
       const ret = last / c.px - 1;
-      const actual: Call = ret > FLAT_BAND ? 'up' : ret < -FLAT_BAND ? 'down' : 'flat';
+      const actual = actualOf(ret);
       const correct = actual === c.call;
       const dir = c.action === 'buy' ? 1 : c.action === 'sell' ? -1 : 0;
       const pnl = dir && c.fill != null ? dir * c.qty * (last - c.fill) : 0;
@@ -108,6 +117,9 @@ export class Scorebook {
       const cat = (s.byCat[r.category] ??= { n: 0, correct: 0 });
       cat.n++; if (r.correct) cat.correct++;
       cat.last = { head: r.head.slice(0, 120), action: r.action, call: r.call, correct: r.correct, clock: r.clock };
+      const tally = (t: { n: number; c: number }) => { t.n++; if (r.correct) t.c++; };
+      if (r.floor === 'with') tally(s.fol); else if (r.floor === 'against') tally(s.fade);
+      if (r.regime && STRESSED.has(r.regime)) tally(s.stress);
     }
     if (r.action !== 'hold' && r.fill != null) {
       s.trades++; if (r.pnl > 0) s.wins++; s.pnl += r.pnl;
@@ -156,6 +168,8 @@ export class Scorebook {
       if (hi) parts.push(`at conviction 70+: ${hiC} of ${hi} right`);
       if (s.recent.length) parts.push(`last ${Math.min(5, s.recent.length)}: ${s.recent.slice(0, 5).map(x => x ? '✓' : '✗').join('')}`);
     }
+    const t = this.tendency(id);
+    if (t) parts.push(t);
     if (s.trades) parts.push(`trades ${s.wins}/${s.trades} profitable, ${money(s.pnl)}${s.best ? `, best ${money(s.best.pnl)}` : ''}${s.worst ? `, worst ${money(s.worst.pnl)}` : ''}`);
     const badges = this.badges(id);
     if (badges.length) parts.push(`reputation: ${badges.join(', ')}`);
@@ -163,6 +177,15 @@ export class Scorebook {
     const last = headCategory ? s.byCat[headCategory]?.last : undefined;
     if (last) similar = `on a previous ${headCategory} headline ("${last.head}", ${last.clock}) you ${last.action.toUpperCase()} and called ${last.call.toUpperCase()}: you were ${last.correct ? 'RIGHT' : 'WRONG'}. Overall on ${headCategory} news: ${s.byCat[headCategory!].correct} of ${s.byCat[headCategory!].n} right.`;
     return { summary: parts.join('; '), budget, budgetWhy: why, similar };
+  }
+
+  /** What the record says about how this trader does with or against the crowd. Only once there is enough data. */
+  tendency(id: string): string | null {
+    const s = this.get(id), out: string[] = [];
+    if (s.fade.n >= 3) out.push(`against the AI majority: ${s.fade.c} of ${s.fade.n} right`);
+    if (s.fol.n >= 3) out.push(`with the majority: ${s.fol.c} of ${s.fol.n} right`);
+    if (s.stress.n >= 3) out.push(`in stressed markets: ${s.stress.c} of ${s.stress.n} right`);
+    return out.length ? out.join(', ') : null;
   }
 
   floorLine(): string {

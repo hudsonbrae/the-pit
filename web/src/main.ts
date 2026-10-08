@@ -8,7 +8,7 @@ import './style.css';
 import { f2, fi, money, sgn, esc } from '../../shared/format';
 import type {
   AccV, AgentV, CandleV, ChatterV, ClientMsg, FillV, HaltV, IntelV, LevelV, MarkerV, NewsV, PlayerV, RecapV, RoomInfo, RoundState, ServerMsg, Snapshot,
-  StoryV, TradeV, TraderStatsV,
+  StoryV, TradeV, TraderStatsV, ScienceV,
 } from '../../shared/protocol';
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
@@ -32,6 +32,7 @@ const G = {
   halts: [] as HaltV[], fills: [] as FillV[], markers: [] as MarkerV[],
   agents: [] as AgentV[], players: [] as PlayerV[], wire: [] as NewsV[], round: { busy: false } as RoundState,
   stories: [] as StoryV[], stats: {} as Record<string, TraderStatsV>, oracle: null as string | null, intel: null as IntelV | null,
+  science: null as ScienceV | null,
 };
 type Who = { id: string; name: string; c: string; ai: boolean };
 let NAMES: Record<string, Who> = {};
@@ -163,7 +164,7 @@ function onMsg(m: ServerMsg) {
     case 'stream': onStream(m); break;
     case 'story': addStory(m.s, true); break;
     case 'stats': {
-      const prev = G.stats; G.stats = m.stats; G.oracle = m.oracle;
+      const prev = G.stats; G.stats = m.stats; G.oracle = m.oracle; G.science = m.science; renderScience();
       G.agents.forEach(a => { const p = prev[a.id], n = m.stats[a.id]; if (p && n && n.calls > p.calls) flashScored(a.id, n.correct > p.correct); paintRecord(a); });
       if (open) paintDrawer();
       break;
@@ -217,16 +218,15 @@ function applyRoom(r: RoomInfo) {
 }
 
 function applySnap(s: Snapshot) {
-  Object.assign(G, { t: s.t, clock: s.clock, last: s.last, open: s.open, hi: s.hi, lo: s.lo, vwap: s.vwap, vol: s.vol, halted: s.halted, candles: s.candles, trades: s.trades, book: s.book, acc: s.acc, halts: s.halts, fills: s.fills, markers: s.markers, agents: s.agents, players: s.players, wire: s.wire, round: s.round, stats: s.stats, oracle: s.oracle, intel: s.intel });
+  Object.assign(G, { t: s.t, clock: s.clock, last: s.last, open: s.open, hi: s.hi, lo: s.lo, vwap: s.vwap, vol: s.vol, halted: s.halted, candles: s.candles, trades: s.trades, book: s.book, acc: s.acc, halts: s.halts, fills: s.fills, markers: s.markers, agents: s.agents, players: s.players, wire: s.wire, round: s.round, stats: s.stats, oracle: s.oracle, intel: s.intel, science: s.science });
+  renderScience();
   rebuildNames();
   C = null;
   buildFloor();
   $('#chatter').innerHTML = ''; $('#chatter').hidden = true;
   s.chatter.slice().reverse().forEach(c => addChatter(c, false));
-  G.stories = [];
-  $('#story').innerHTML = '';
-  s.stories.slice().reverse().forEach(st => addStory(st, false));
-  if (!s.stories.length) $('#story').innerHTML = '<li class="empty"><span class="tm"></span><span class="tx">Moments land here as they happen: big moves, splits, calls scored, mind changes, halts.</span></li>';
+  G.stories = s.stories.slice();
+  renderStories();
   setRound(s.round);
   $('#haltBanner').hidden = !s.halted;
   renderWire(); renderTop(); renderBook(); renderTape(); renderStand(); renderPlayers(); renderIntel(); drawChart();
@@ -375,17 +375,32 @@ function typeInto(el: HTMLElement & { _t?: number }, text: string) {
   el._t = window.setInterval(() => { i += 2; el.textContent = text.slice(0, i); if (i >= text.length) clearInterval(el._t); }, 16);
 }
 
-// ---------- storyline ----------
-function addStory(s: StoryV, live: boolean) {
-  const box = $('#story');
-  box.querySelector('.empty')?.remove();
-  G.stories.unshift(s); if (G.stories.length > 40) G.stories.length = 40;
+// ---------- storyline: moments (weight 2+) or the full timeline ----------
+let storyView: 'moments' | 'timeline' = store.get('pit.story') === 'timeline' ? 'timeline' : 'moments';
+const storyShown = (s: StoryV) => storyView === 'timeline' || s.weight >= 2;
+function storyLi(s: StoryV, live: boolean) {
   const li = document.createElement('li');
   li.className = `w${s.weight}${live ? ' new' : ''}`;
-  li.innerHTML = `<span class="tm">${esc(s.clock)}</span><span class="tx">${esc(s.text)}</span>`;
-  box.prepend(li); while (box.children.length > 40) box.lastChild!.remove();
-  if (live && s.weight >= 3) sfx.chat();
+  li.innerHTML = `<span class="tm">${esc(s.clock)}</span><span class="tx">${s.title ? `<b class="st">${esc(s.title)}</b>` : ''}${esc(s.text)}</span>`;
+  return li;
 }
+function renderStories() {
+  const box = $('#story');
+  const rows = G.stories.filter(storyShown).slice(0, 60);
+  box.replaceChildren(...rows.map(s => storyLi(s, false)));
+  if (!rows.length) box.innerHTML = `<li class="empty"><span class="tm"></span><span class="tx">${storyView === 'timeline' ? 'Every headline, desk read, decision, big trade, scored call and regime change lands here.' : 'Moments land here as they happen: big moves, splits, calls scored, mind changes, halts.'}</span></li>`;
+  $('#storySub').textContent = storyView === 'timeline' ? 'everything, as it happens' : 'the moments that matter';
+  $('#storyTabs').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String((b as HTMLElement).dataset.v === storyView)));
+}
+function addStory(s: StoryV, live: boolean) {
+  G.stories.unshift(s); if (G.stories.length > 160) G.stories.length = 160;
+  if (!live || !storyShown(s)) return;
+  const box = $('#story');
+  box.querySelector('.empty')?.remove();
+  box.prepend(storyLi(s, true)); while (box.children.length > 60) box.lastChild!.remove();
+  if (s.weight >= 3) sfx.chat();
+}
+$('#storyTabs').addEventListener('click', e => { const b = (e.target as HTMLElement).closest('button') as HTMLElement | null; if (!b?.dataset.v) return; storyView = b.dataset.v as typeof storyView; store.set('pit.story', storyView); renderStories(); });
 
 // ---------- wire ----------
 function impChip(n: NewsV) {
@@ -642,9 +657,13 @@ function showRecap(r: RecapV) {
     ${r.biggestTrade ? card('Biggest trade', `${esc(r.biggestTrade.name)}`, `${r.biggestTrade.side === 'buy' ? 'bought' : 'sold'} ${fi(r.biggestTrade.qty)} @ ${f2(r.biggestTrade.price)}`) : ''}
     ${r.mostSplit ? card('Most controversial', 'SPLIT', esc(r.mostSplit)) : ''}
     ${card('Regimes', '', esc(r.regimes.join(' → ')))}
+    ${r.bestCall ? card('Best call', esc(r.bestCall.name), `${r.bestCall.conviction}% sure of ${esc(r.bestCall.call.toUpperCase())} on “${esc(r.bestCall.head)}”: ${r.bestCall.ret > 0 ? '+' : ''}${r.bestCall.ret.toFixed(1)}% in 60s`) : ''}
+    ${r.worstCall ? card('Worst call', esc(r.worstCall.name), `${r.worstCall.conviction}% sure of ${esc(r.worstCall.call.toUpperCase())} on “${esc(r.worstCall.head)}”: it went ${r.worstCall.ret > 0 ? '+' : ''}${r.worstCall.ret.toFixed(1)}%`) : ''}
+    ${r.fastest ? card('Fastest reaction', esc(r.fastest.name), `traded ${r.fastest.secs}s after a headline`) : ''}
+    ${r.science ? card('AI science', r.science.debate.open != null && r.science.debate.final != null && r.science.debate.n >= 6 ? `${r.science.debate.open}% → ${r.science.debate.final}%` : 'DEBATE?', esc(r.science.verdict)) : ''}
     ${r.achievements.length ? card('Achievements', '', r.achievements.map(a => `${esc(a.name)}: ${esc(a.title)}`).join('<br>')) : ''}
   </div>
-  ${r.moments.length ? `<h3 class="sub">Moments</h3><ol class="story">${r.moments.map(s => `<li class="w${s.weight}"><span class="tm">${esc(s.clock)}</span><span class="tx">${esc(s.text)}</span></li>`).join('')}</ol>` : ''}`;
+  ${r.moments.length ? `<h3 class="sub">Moments</h3><ol class="story">${r.moments.map(s => `<li class="w${s.weight}"><span class="tm">${esc(s.clock)}</span><span class="tx">${s.title ? `<b class="st">${esc(s.title)}</b>` : ''}${esc(s.text)}</span></li>`).join('')}</ol>` : ''}`;
   $('#recapNarr').textContent = '';
   $('#rNew').hidden = !isHost();
   $('#recap').hidden = false;
@@ -745,6 +764,9 @@ function paintDrawer() {
       <div class="stat"><span>Best trade</span><b class="up">${s.best && s.best.pnl > 0 ? money(s.best.pnl) : '-'}</b></div>
       <div class="stat"><span>Worst trade</span><b class="down">${s.worst && s.worst.pnl < 0 ? money(s.worst.pnl) : '-'}</b></div>
       <div class="stat"><span>Streak</span><b>${s.streak > 0 ? s.streak + ' right' : s.streak < 0 ? -s.streak + ' wrong' : '-'}</b></div>
+      <div class="stat"><span>Return today</span><b class="${sgn(s.roi)}">${s.roi > 0 ? '+' : ''}${s.roi.toFixed(2)}%</b></div>
+      <div class="stat"><span>Max drawdown</span><b class="${s.maxDD > 0 ? 'down' : ''}">${s.maxDD ? '−' + s.maxDD.toFixed(2) + '%' : '-'}</b></div>
+      <div class="stat"><span>Return / drawdown</span><b>${s.maxDD >= 0.05 ? (s.roi / s.maxDD).toFixed(1) : '-'}</b></div>
     </div><div class="recent">${s.recent.map(x => x ? '<span class="y">✓</span>' : '<span class="n">✗</span>').join('')}</div>
     <div class="badges">${s.badges.map(badgeHtml).join('')}</div>`;
     $('#dCalib').innerHTML = `<div class="calib">${s.calibration.map(c => {
@@ -756,6 +778,8 @@ function paintDrawer() {
     $('#dRecord').innerHTML = '<p class="voice">No scored calls yet. Every call is checked 60 seconds after it is made.</p>';
     $('#dCalib').innerHTML = '<p class="voice">Calibration appears after a few scored calls.</p>';
   }
+  const tend = (t: [number, number] | undefined, what: string) => !t || t[1] < 3 ? `<span class="few">${t?.[1] ?? 0} so far</span>` : `${t[0]} of ${t[1]} · <b>${Math.round(t[0] / t[1] * 100)}%</b><span class="voice"> ${what}</span>`;
+  $('#dTend').innerHTML = s ? `<table class="ttable"><tr><td>With the AI majority</td><td>${tend(s.tend?.fol, '')}</td></tr><tr><td>Against the majority</td><td>${tend(s.tend?.fade, '')}</td></tr><tr><td>In stressed markets</td><td>${tend(s.tend?.stress, '')}</td></tr></table><p class="voice">Scored calls only. Fed back into their prompt once there are 3 or more.</p>` : '';
   $('#dLessons').innerHTML = a.lessons.length ? a.lessons.map(l => `<li>${esc(l)}</li>`).join('') : '<li class="none">None yet. They write one after seeing how a call worked out.</li>';
   $('#dHist').innerHTML = a.log.slice(0, 12).map(l => `<li><span class="hh">${esc(l.time)} · ${esc(l.head)} · ${esc(l.act)}</span><span>${esc(l.thought)}</span></li>`).join('');
   const on = !!G.room?.ai.on && !G.watching;
@@ -768,7 +792,7 @@ function openDrawer(id: string) {
   $('#drawer').hidden = false; $('#scrim').hidden = false; $('#dock').hidden = true;
   if (!coarse) $<HTMLInputElement>('#askInput').focus();
 }
-function closeDrawers() { open = null; $('#drawer').hidden = true; $('#hostPanel').hidden = true; $('#scrim').hidden = true; if (!G.watching && !$('#game').hidden) $('#dock').hidden = false; }
+function closeDrawers() { open = null; $('#drawer').hidden = true; $('#hostPanel').hidden = true; $('#sciPanel').hidden = true; $('#scrim').hidden = true; if (!G.watching && !$('#game').hidden) $('#dock').hidden = false; }
 $('#dClose').onclick = closeDrawers; $('#hClose').onclick = closeDrawers; $('#scrim').onclick = closeDrawers;
 addEventListener('keydown', e => { if (e.key === 'Escape') { closeDrawers(); $('#recap').hidden = true; } });
 $('#askForm').addEventListener('submit', e => {
@@ -777,6 +801,42 @@ $('#askForm').addEventListener('submit', e => {
   inp.value = ''; $('#answer').textContent = 'Thinking…'; $<HTMLButtonElement>('#askBtn').disabled = true;
   send({ k: 'ask', id: open.id, q });
 });
+
+// ---------- AI science ----------
+const pctS = (v: number | null) => v == null ? '-' : v + '%';
+function renderScience() {
+  const x = G.science; if (!x) return;
+  const d = x.debate;
+  $('#sciTxt').textContent = d.n >= 6 && d.open != null && d.final != null
+    ? `Debate: opening views ${d.open}% right → final calls ${d.final}% (${d.n} calls)${x.single.n ? ` · no debate ${pctS(x.single.acc)}` : ''}`
+    : `Does debate make the floor smarter? ${d.n} of 6 debated calls scored${x.single.n ? ` · no-debate calls ${pctS(x.single.acc)} of ${x.single.n}` : ''}`;
+  if (!$('#sciPanel').hidden) paintScience();
+}
+function paintScience() {
+  const x = G.science; if (!x) return;
+  const bar = (label: string, v: number | null, n: number, cls = '') => `<div class="xbar ${cls}"><span>${label}</span><span class="tr">${v != null ? `<i style="width:${v}%"></i>` : ''}<u></u></span><b>${v != null ? v + '%' : '-'}<small class="voice"> /${n}</small></b></div>`;
+  const tr = (a: AgentV) => { const t = G.stats[a.id]?.tend; const c = (v?: [number, number]) => !v || v[1] < 3 ? `<span class="few">${v?.[1] ?? 0}</span>` : `${Math.round(v[0] / v[1] * 100)}%<small class="voice">/${v[1]}</small>`; return `<tr><td style="color:var(--a-${a.id})">${esc(a.name)}</td><td>${c(t?.fol)}</td><td>${c(t?.fade)}</td><td>${c(t?.stress)}</td></tr>`; };
+  const herd = (v: number | null) => v == null ? '-' : `${Math.round(v * 100)}%`;
+  $('#sciBody').innerHTML = `
+    <h3 class="sub">Does debate make the floor smarter?</h3>
+    <p class="verdict">${esc(x.verdict)}</p>
+    <div class="xbars">
+      ${bar('Opening views', x.debate.open, x.debate.n)}
+      ${bar('After debate', x.debate.final, x.debate.n, 'fin')}
+      ${bar('No debate', x.single.acc, x.single.n)}
+    </div>
+    <p class="voice">Every trader's call (up, down or flat over the next 60 seconds) is scored against the price. In a debated round the opening view is scored too, so the same trader on the same headline is measured before and after the argument. The line marks a coin flip. ${x.debate.flips ? `The debate changed ${x.debate.flips} call${x.debate.flips > 1 ? 's' : ''}; ${x.debate.flipsRight} of them ended up right.` : ''}</p>
+    <h3 class="sub">Herding</h3>
+    <p class="voice">Share of the floor taking the same action in a round. Calm markets: <b>${herd(x.herding.calm)}</b> · stressed (panic, euphoria, volatile, liquidity crunch): <b>${herd(x.herding.stressed)}</b>.${x.herding.calm != null && x.herding.stressed != null ? (x.herding.stressed > x.herding.calm + 0.05 ? ' The floor moves more as one under stress.' : x.herding.stressed < x.herding.calm - 0.05 ? ' Stress splits the floor.' : ' Stress barely changes how much they agree.') : ''}</p>
+    <h3 class="sub">Relationships (measured)</h3>
+    ${x.relations.length ? `<ul class="rel">${x.relations.map(r => `<li><span class="k ${r.kind}">${r.kind === 'twins' ? 'MOVE TOGETHER' : 'RIVALS'}</span><b>${esc(r.a)}</b> and <b>${esc(r.b)}</b> ${r.kind === 'twins' ? 'traded the same way' : 'took opposite sides'} in ${Math.round(r.rate * r.n)} of ${r.n} rounds.</li>`).join('')}</ul>` : '<p class="voice">Appears once pairs of traders have acted together in 4+ rounds.</p>'}
+    <h3 class="sub">Who is right with the crowd, and against it</h3>
+    <table class="ttable"><tr><th></th><th>WITH MAJORITY</th><th>AGAINST</th><th>STRESSED</th></tr>${G.agents.map(tr).join('')}</table>
+    <h3 class="sub">The desk</h3>
+    <p class="voice">The newsroom's fair-value call pointed the way the price actually went on <b>${pctS(x.desk.acc)}</b> of ${x.desk.n} headlines (moves under 0.4% don't count).</p>`;
+}
+$('#sciBtn').onclick = () => { paintScience(); $('#sciPanel').hidden = false; $('#scrim').hidden = false; $('#dock').hidden = true; };
+$('#sClose').onclick = () => closeDrawers();
 
 // ---------- host panel: scenarios and the lab ----------
 function paintHost() {

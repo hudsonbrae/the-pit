@@ -200,7 +200,7 @@ describe('stories, achievements, scenarios, closing bell, lab', () => {
     expect(c.of('achievement')[0]).toMatchObject({ id: 'first_blood' });
     expect(room.tell.stories.some(s => /Brae earned FIRST BLOOD/.test(s.text))).toBe(true);
     await room.runRound({ text: 'x', byName: 'Brae', origin: 'PLAYER' });
-    expect(room.tell.stories.some(s => /Unanimous: all six AI traders bought/.test(s.text))).toBe(true);
+    expect(room.tell.stories.some(s => /All six AI traders bought/.test(s.text) && s.title === 'ONE VOICE')).toBe(true);
   });
 
   it('a flash crash withdraws liquidity, runs a sell program and puts a SCENARIO headline through the floor', async () => {

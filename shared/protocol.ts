@@ -64,6 +64,21 @@ export interface TraderStatsV {
   best: { pnl: number; head: string } | null; worst: { pnl: number; head: string } | null;
   avgConv: number; recent: boolean[]; stars: number; badges: string[];
   calibration: { lo: number; hi: number; n: number; acc: number | null }[];
+  /** This session: return on starting equity and the worst peak-to-trough drop, both in %. */
+  roi: number; maxDD: number;
+  /** Accuracy (%) with the AI majority, against it, and in stressed regimes; null until 3+ calls. */
+  tend: { fol: [number, number]; fade: [number, number]; stress: [number, number] };
+}
+
+/** The room's running experiment (see server/intel/science.ts). Percentages, null until there is data. */
+export interface ScienceV {
+  debate: { open: number | null; final: number | null; n: number; flips: number; flipsRight: number };
+  single: { acc: number | null; n: number };
+  desk: { acc: number | null; n: number };
+  herding: { calm: number | null; stressed: number | null };
+  /** twins: same action in `rate` of `n` rounds; rivals: opposite sides (buy vs sell) in `rate` of `n`. */
+  relations: { a: string; b: string; rate: number; n: number; kind: 'twins' | 'rivals' }[];
+  verdict: string;
 }
 
 export interface PlayerV { id: string; name: string; color: string; host: boolean; online: boolean; badges?: AchievementId[] }
@@ -82,7 +97,8 @@ export interface IntelV {
   smart: { id: string; sh: number } | null;
 }
 
-export interface StoryV { id: number; kind: string; text: string; weight: 1 | 2 | 3; clock: string; who?: string }
+/** A storyline entry. weight 1 = timeline detail, 2 = moment, 3 = big moment. `title` names the moment ("THE FLOOR SPLITS"). */
+export interface StoryV { id: number; kind: string; text: string; weight: 1 | 2 | 3; clock: string; who?: string; title?: string }
 export type AchievementId = 'first_blood' | 'perfect_timing' | 'against_floor' | 'diamond_hands' | 'ai_slayer';
 
 export interface LabV {
@@ -127,7 +143,7 @@ export interface Delta {
 export interface Snapshot extends Delta {
   halts: HaltV[]; fills: FillV[]; markers: MarkerV[];
   agents: AgentV[]; players: PlayerV[]; wire: NewsV[]; chatter: ChatterV[]; round: RoundState;
-  stories: StoryV[]; stats: Record<string, TraderStatsV>; oracle: string | null; intel: IntelV;
+  stories: StoryV[]; stats: Record<string, TraderStatsV>; oracle: string | null; intel: IntelV; science: ScienceV;
 }
 
 export interface ChatterV { id: string; to: string; line: string; kind?: 'chatter' | 'challenge' }
@@ -143,6 +159,12 @@ export interface RecapV {
   regimes: string[];
   moments: StoryV[];
   achievements: { name: string; title: string }[];
+  science: ScienceV;
+  /** The most confident right call and the most confident wrong one. */
+  bestCall: { name: string; call: string; conviction: number; ret: number; head: string } | null;
+  worstCall: { name: string; call: string; conviction: number; ret: number; head: string } | null;
+  /** Fastest human trade after a headline, in seconds. */
+  fastest: { name: string; secs: number } | null;
 }
 
 export type ServerMsg =
@@ -159,7 +181,7 @@ export type ServerMsg =
   | { k: 'toast'; text: string; area?: 'seat' | 'news' }
   | { k: 'stream'; kind: 'wrap' | 'ask' | 'recap'; text: string; done: boolean; error?: string }
   | { k: 'story'; s: StoryV }
-  | { k: 'stats'; stats: Record<string, TraderStatsV>; oracle: string | null }
+  | { k: 'stats'; stats: Record<string, TraderStatsV>; oracle: string | null; science: ScienceV }
   | { k: 'achievement'; id: AchievementId; title: string; desc: string }
   | { k: 'act'; title: string; sub: string }
   | { k: 'recap'; recap: RecapV }

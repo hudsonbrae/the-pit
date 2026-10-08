@@ -15,6 +15,13 @@ export const ACHIEVEMENTS: Record<AchievementId, { title: string; desc: string }
   ai_slayer: { title: 'AI Slayer', desc: 'Ahead of all six AI traders, in profit' },
 };
 
+/** Headline titles for the moments that matter ("13:42 · THE FLOOR SPLITS"). */
+const TITLES: Record<string, string> = {
+  split: 'THE FLOOR SPLITS', unanimous: 'ONE VOICE', halt: 'CIRCUIT BREAKER', liq: 'LIQUIDITY COLLAPSE', regime: 'REGIME SHIFT',
+  mind: 'MIND CHANGED', streak: 'HOT HAND', humble: 'HUMBLED', called: 'CALLED IT', htime: 'PERFECT TIMING', hmiss: 'WRONG WAY',
+  leader: 'NEW LEADER', ach: 'ACHIEVEMENT', allin: 'ALL IN',
+};
+
 export class Storyteller {
   stories: StoryV[] = [];
   private seq = 0;
@@ -29,14 +36,46 @@ export class Storyteller {
 
   constructor(private emit: (s: StoryV) => void, private award: (pid: string, a: AchievementId) => void) {}
 
-  add(kind: string, text: string, weight: 1 | 2 | 3, clock: string, t: number, opts: { cool?: number; who?: string } = {}) {
+  add(kind: string, text: string, weight: 1 | 2 | 3, clock: string, t: number, opts: { cool?: number; who?: string; title?: string } = {}) {
     const until = this.cool.get(kind) ?? -1;
     if (t < until) return;
     if (opts.cool) this.cool.set(kind, t + opts.cool);
-    const s: StoryV = { id: ++this.seq, kind, text, weight, clock: clock.slice(0, 5), who: opts.who };
+    const s: StoryV = { id: ++this.seq, kind, text, weight, clock: clock.slice(0, 5), who: opts.who, title: opts.title ?? (weight >= 2 ? TITLES[kind.split(':')[0]] : undefined) };
     this.stories.unshift(s);
-    if (this.stories.length > 60) this.stories.length = 60;
+    // the timeline (weight 1) is dense; keep it from pushing the real moments out
+    if (this.stories.length > 160) { const i = this.stories.findLastIndex(x => x.weight === 1); this.stories.splice(i >= 100 ? i : 160, 1); }
+    if (this.stories.length > 160) this.stories.length = 160;
     this.emit(s);
+  }
+
+  /** A timeline entry: everything that happened, small. */
+  tl(kind: string, text: string, clock: string, t: number, cool = 0) { this.add('tl:' + kind, text, 1, clock, t, { cool }); }
+
+  // ---- price path: reversals ----
+  private px: { t: number; px: number }[] = [];
+  onPrice(ticker: string, px: number, clock: string, t: number) {
+    this.px.push({ t, px }); while (this.px.length && this.px[0].t < t - 480) this.px.shift();
+    if (this.px.length < 20) return;
+    let lo = 0, hi = 0;
+    this.px.forEach((p, i) => { if (p.px < this.px[lo].px) lo = i; if (p.px > this.px[hi].px) hi = i; });
+    const L = this.px[lo].px, H = this.px[hi].px;
+    // fell from a high to a low, then clawed back (or the mirror image), all within two minutes
+    if (hi < lo && H / L - 1 >= 0.02 && px / L - 1 >= 0.015 && t - this.px[lo].t >= 20)
+      this.add('reversal', `${ticker} fell ${((1 - L / H) * 100).toFixed(1)}% to ${L.toFixed(2)}, then clawed back ${((px / L - 1) * 100).toFixed(1)}%.`, 3, clock, t, { cool: 480, title: 'THE REVERSAL' });
+    else if (lo < hi && H / L - 1 >= 0.02 && 1 - px / H >= 0.015 && t - this.px[hi].t >= 20)
+      this.add('reversal', `${ticker} spiked ${((H / L - 1) * 100).toFixed(1)}% to ${H.toFixed(2)}, then gave back ${((1 - px / H) * 100).toFixed(1)}%.`, 3, clock, t, { cool: 480, title: 'THE FADE' });
+  }
+
+  // ---- humans vs the machines: what humans did in the 30 s after the floor took a side ----
+  private humanNet = 0; private humanN = new Set<string>(); private hvaChecked = true;
+  onHumanTrade(pid: string, side: 'buy' | 'sell', qty: number) { this.humanNet += side === 'buy' ? qty : -qty; this.humanN.add(pid); }
+  private checkHumansVsAI(clock: string, t: number) {
+    const fm = this.floorMajority;
+    if (this.hvaChecked || !fm || t - fm.t < 120) return;
+    this.hvaChecked = true;
+    const hs = this.humanNet > 0 ? 'buy' : 'sell';
+    if (Math.abs(this.humanNet) >= 1000 && hs !== fm.side)
+      this.add('hva', `The AI floor ${fm.side === 'buy' ? 'bought' : 'sold'}; ${this.humanN.size === 1 ? 'the human' : `${this.humanN.size} humans`} ${hs === 'buy' ? 'bought' : 'sold'} ${fi(Math.abs(this.humanNet))} the other way.`, 3, clock, t, { cool: 240, title: 'HUMANS VS MACHINES' });
   }
 
   give(pid: string, a: AchievementId, name: string, clock: string, t: number) {
@@ -49,12 +88,13 @@ export class Storyteller {
 
   // ---- hooks ----
   onIntel(ticker: string, regime: Regime, r30: number, depthRatio: number, clock: string, t: number) {
+    this.checkHumansVsAI(clock, t);
     if (regime !== this.lastRegime) {
       const big = ['PANIC', 'EUPHORIA', 'LIQUIDITY CRUNCH', 'HALTED'].includes(regime);
-      if (regime !== 'HALTED') this.add('regime', `Regime: ${this.lastRegime} → ${regime}.`, big ? 2 : 1, clock, t, { cool: 40 });
+      if (regime !== 'HALTED') this.add('regime', `Regime: ${this.lastRegime} → ${regime}.`, big ? 2 : 1, clock, t, { cool: 40, title: regime === 'PANIC' ? 'PANIC ON THE FLOOR' : regime === 'EUPHORIA' ? 'EUPHORIA' : regime === 'LIQUIDITY CRUNCH' ? 'THE BOOK DRIES UP' : undefined });
       this.lastRegime = regime;
     }
-    if (Math.abs(r30) >= 2) this.add('move', `${ticker} ${r30 > 0 ? 'jumped' : 'fell'} ${Math.abs(r30).toFixed(1)}% in 30 seconds.`, Math.abs(r30) >= 4 ? 3 : 2, clock, t, { cool: 160 });
+    if (Math.abs(r30) >= 2) this.add('move', `${ticker} ${r30 > 0 ? 'jumped' : 'fell'} ${Math.abs(r30).toFixed(1)}% in 30 seconds.`, Math.abs(r30) >= 4 ? 3 : 2, clock, t, { cool: 160, title: r30 > 0 ? 'THE RIP' : 'THE DROP' });
     if (depthRatio < 0.45) this.add('liq', `Liquidity drained: the top of the book is ${Math.round((1 - depthRatio) * 100)}% thinner than normal.`, 2, clock, t, { cool: 400 });
   }
 
@@ -72,13 +112,16 @@ export class Storyteller {
     this.holdThroughHalt.clear();
   }
 
-  onRoundEnd(head: string | null, decisions: { id: string; name: string; action: string }[], clock: string, t: number) {
+  onRoundEnd(head: string | null, decisions: { id: string; name: string; action: string; conviction: number; call: string }[], ticker: string, clock: string, t: number) {
     const n = { buy: 0, sell: 0, hold: 0 } as Record<string, number>;
     decisions.forEach(d => { n[d.action]++; });
     const what = head ? `on "${head.length > 60 ? head.slice(0, 57) + '…' : head}"` : 'on the floor check';
-    if (n.buy === 6 || n.sell === 6) this.add('split', `Unanimous: all six AI traders ${n.buy === 6 ? 'bought' : 'sold'} ${what}.`, 3, clock, t);
+    if (n.buy === 6 || n.sell === 6) this.add('unanimous', `All six AI traders ${n.buy === 6 ? 'bought' : 'sold'} ${what}.`, 3, clock, t);
     else if (n.buy && n.sell && Math.max(n.buy, n.sell) <= 3) this.add('split', `The AI floor split ${n.buy} buy, ${n.sell} sell, ${n.hold} hold ${what}.`, 2, clock, t);
+    const top = decisions.filter(d => d.call !== 'flat').sort((a, b) => b.conviction - a.conviction)[0];
+    if (top && top.conviction >= 90) this.add('allin', `${top.name} is ${top.conviction}% sure ${ticker} goes ${top.call.toUpperCase()} and ${top.action === 'hold' ? 'still held' : top.action === 'buy' ? 'bought' : 'sold'}.`, 2, clock, t, { cool: 160 });
     this.floorMajority = n.buy >= 4 ? { side: 'buy', t } : n.sell >= 4 ? { side: 'sell', t } : null;
+    this.humanNet = 0; this.humanN.clear(); this.hvaChecked = !this.floorMajority;
   }
 
   onMindChange(name: string, from: string, to: string, by: string | null, clock: string, t: number) {
@@ -114,7 +157,7 @@ export class Storyteller {
     }
     if (humans) {
       const ahead = humanTotal > aiTotal;
-      if (this.humansAhead !== null && ahead !== this.humansAhead) this.add('teams', ahead ? 'Humans pull ahead of the AI floor.' : 'The AI floor retakes the lead from the humans.', 2, clock, t, { cool: 120 });
+      if (this.humansAhead !== null && ahead !== this.humansAhead) this.add('teams', ahead ? 'Humans pull ahead of the AI floor.' : 'The AI floor retakes the lead from the humans.', 2, clock, t, { cool: 120, title: ahead ? 'HUMANS PULL AHEAD' : 'THE MACHINES STRIKE BACK' });
       this.humansAhead = ahead;
     }
     const bestAi = Math.max(...rows.filter(r => !r.human).map(r => r.pnl));
@@ -123,5 +166,5 @@ export class Storyteller {
 
   onFirstFill(pid: string, name: string, clock: string, t: number) { this.give(pid, 'first_blood', name, clock, t); }
 
-  reset() { this.stories = []; this.cool.clear(); this.lastLeader = null; this.humansAhead = null; this.lastRegime = 'CALM'; this.floorMajority = null; this.earned.clear(); this.holdThroughHalt.clear(); }
+  reset() { this.stories = []; this.cool.clear(); this.lastLeader = null; this.humansAhead = null; this.lastRegime = 'CALM'; this.floorMajority = null; this.earned.clear(); this.holdThroughHalt.clear(); this.px = []; this.hvaChecked = true; }
 }

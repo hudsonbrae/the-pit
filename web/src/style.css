@@ -305,6 +305,9 @@ img{max-width:100%}
 .story li.w1 .tx{color:var(--muted)}
 .story li.new{animation:nw 1.5s ease-out}
 @keyframes nw{0%{background:var(--panel2)}100%{background:transparent}}
+.story .st{display:block;font:700 11px/1.5 var(--mono);letter-spacing:.12em;color:var(--amber)}
+.story li.w3 .st{font-size:12.5px}
+.p-story .ph .mini{margin-left:auto}
 .story .empty{color:var(--muted);font-style:italic}
 
 /* standings */
@@ -459,3 +462,27 @@ body.stage .stagejoin b{color:var(--amber);font-size:20px}
 body.watching .p-you .seg,body.watching .p-you .tradebtns,body.watching .p-desk .newsform,body.watching .p-desk .chips,body.watching .p-desk .tools,body.watching .dock{display:none!important}
 
 .calib .few{color:var(--faint)}
+
+/* AI science */
+.sci{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--panel2);border:0;border-bottom:1px solid var(--line);padding:7px 14px;font:500 12px/1.35 var(--mono);color:var(--fg);cursor:pointer;min-height:36px}
+.sci .k{font-weight:700;letter-spacing:.12em;color:var(--amber);white-space:nowrap;font-size:10.5px}
+.sci #sciTxt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.sci .go{color:var(--faint);font-size:16px}
+.sci:hover #sciTxt{color:var(--fg)}
+.xbars{display:grid;gap:8px;margin:6px 0 4px}
+.xbar{display:grid;grid-template-columns:120px minmax(0,1fr) 64px;gap:8px;align-items:center;font:500 12px var(--mono)}
+.xbar .tr{height:12px;background:var(--line);border-radius:2px;position:relative;overflow:hidden}
+.xbar .tr i{position:absolute;inset:0 auto 0 0;background:var(--a-kestrel)}
+.xbar .tr u{position:absolute;top:-2px;bottom:-2px;left:50%;width:1px;background:var(--faint)}
+.xbar.fin .tr i{background:var(--amber)}
+.xbar b{text-align:right}
+.verdict{font:700 15px/1.35 var(--sans);margin:4px 0 10px}
+.ttable{width:100%;border-collapse:collapse;font:500 12px var(--mono)}
+.ttable th{font-weight:500;color:var(--muted);text-align:right;padding:4px 6px;font-size:10.5px;letter-spacing:.06em}
+.ttable td{text-align:right;padding:5px 6px;border-top:1px solid var(--line)}
+.ttable th:first-child,.ttable td:first-child{text-align:left}
+.ttable .few{color:var(--faint)}
+.rel{list-style:none;margin:0;padding:0;display:grid;gap:6px;font:400 13.5px/1.4 var(--sans)}
+.rel b{font-weight:600}
+.rel .k{font:700 10px var(--mono);letter-spacing:.1em;padding:1px 5px;border-radius:2px;margin-right:6px;border:1px solid var(--line2)}
+.rel .k.twins{color:var(--up);border-color:var(--up)}.rel .k.rivals{color:var(--down);border-color:var(--down)}
