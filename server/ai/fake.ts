@@ -67,6 +67,15 @@ const CHATTER: [string, string, string][] = [
   ['kestrel', 'marlowe', 'Marlowe, the tape does not care about your discounted cash flows.'],
 ];
 
+const CHALLENGE: Record<string, string[]> = {
+  marlowe: ['{to}, you are trading the noise. Show me what changed in the cash flows.', '{to}, I have watched this panic play out for thirty years. You are selling the bottom.'],
+  kestrel: ['{to}, the tape disagrees with you. Bids vanished the second it hit the wire.', '{to}, your thesis takes a quarter. My stop takes a second.'],
+  juno: ['{to}, you are missing the second-order effect: the auditors, then the lenders.', '{to}, ask who else this hits. The answer is the bull case.'],
+  ash: ['{to}, everyone in this pit agrees with you. That is exactly the problem.', '{to}, you were this sure last time, and you were wrong.'],
+  vega: ['{to}, at that size one bad print wipes your week. Your expected value is negative.', '{to}, volatility just tripled and you want to add? The numbers say halve it.'],
+  pip: ['{to}, ok boomer. The chart literally says otherwise.', '{to}, you are scared of a candle. I am buying the candle.'],
+};
+
 const HEADLINES = [
   '{co} wins multi-year supply deal with a top-five utility',
   'Report: {co} weighs secondary offering to fund expansion',
@@ -204,7 +213,9 @@ export class FakeLLM implements LLM {
       const ids = AGENTS.map(a => a.id);
       for (let i = 0; i < 3; i++) {
         const [id, to] = [ids[(i * 2 + Math.floor(R() * 6)) % 6], ids[(i * 2 + 3 + Math.floor(R() * 2)) % 6]];
-        lines.push(JSON.stringify({ type: 'challenge', id, to: to === id ? ids[(ids.indexOf(id) + 1) % 6] : to, line: this.pick(CHATTER)[2] }));
+        const target = to === id ? ids[(ids.indexOf(id) + 1) % 6] : to;
+        const toName = AGENTS.find(a => a.id === target)!.name;
+        lines.push(JSON.stringify({ type: 'challenge', id, to: target, line: this.pick(CHALLENGE[id]).replace('{to}', toName) }));
       }
       lines.push(...finals);
     } else if (phase === 'round') {

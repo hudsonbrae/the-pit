@@ -15,7 +15,8 @@
 
 <div class="lobby" id="lobby" hidden>
   <div class="lobbybox">
-    <div class="brand"><h1>The Pit</h1><p>Simulated exchange · six AI traders · your friends</p></div>
+    <div class="brand"><h1>The Pit</h1><p>A live trading floor · six Claude traders · your friends</p></div>
+    <button class="btn primary demo" id="demoBtn" type="button">Run the demo<small>Nine acts, about six minutes. Bring a friend.</small></button>
     <form class="lobbycard" id="createForm" autocomplete="off">
       <h2>Open a room</h2>
       <label class="fld"><span>Your name</span><input id="nameIn" maxlength="20" placeholder="e.g. Brae" required></label>
@@ -24,15 +25,15 @@
         <button type="button" data-m="real" aria-pressed="false">Real · ticker</button>
       </div>
       <label class="fld" id="tickerFld" hidden><span>US ticker</span><input id="tickerIn" maxlength="7" placeholder="AAPL, NVDA, TSLA…" autocapitalize="characters" spellcheck="false"></label>
-      <p class="hint" id="modeHint">Fictional Halcyon Dynamics. Write any headline and watch the floor react.</p>
+      <p class="hint" id="modeHint">Fictional Halcyon Dynamics. Write any headline, or run a scenario, and watch the floor react.</p>
       <button class="btn primary" id="createBtn" type="submit">Open the room</button>
     </form>
     <form class="lobbycard" id="joinForm" autocomplete="off">
       <h2>Join a room</h2>
-      <div class="newsform"><input id="codeIn" maxlength="5" placeholder="Room code" aria-label="Room code" autocapitalize="characters" spellcheck="false"><button class="btn" type="submit">Join</button></div>
+      <div class="newsform"><input id="codeIn" maxlength="5" placeholder="Room code" aria-label="Room code" autocapitalize="characters" spellcheck="false"><button class="btn" type="submit">Join</button><button class="btn" type="button" id="watchBtn" title="Watch without trading">Watch</button></div>
     </form>
     <p class="status" id="lobbyStatus" aria-live="polite"></p>
-    <p class="fine">Fake money only. Nothing here places real orders or touches a brokerage.</p>
+    <p class="fine">Simulated exchange, fake money. Nothing here places real orders or touches a brokerage.</p>
   </div>
 </div>
 
@@ -55,15 +56,19 @@
       <p id="brandSub">HLCN · Halcyon Dynamics · simulated exchange</p>
     </div>
     <div class="quote">
+      <span class="prov sim" title="Simulated exchange price">SIM</span>
       <span class="px num" id="px">100.00</span>
       <span class="chg" id="chg">+0.00 (0.00%)</span>
-      <span class="realq" id="realq" hidden><span class="lbl">Real</span> <b class="num" id="realPx">-</b> <span class="sub" id="realSub"></span></span>
+      <span class="realq" id="realq" hidden><span class="prov real">REAL</span> <b class="num" id="realPx">-</b> <span class="realsub" id="realSub"></span></span>
     </div>
     <div class="pills">
-      <span class="pill live" id="mkt"><i></i><span>Market open</span></span>
+      <span class="pill live" id="mkt"><i></i><span>Exchange open</span></span>
       <span class="pill off" id="ai"><i></i><span>Connecting Claude</span></span>
-      <button class="pill pbtn" id="roomBtn" type="button" title="Copy the invite link"><span id="roomLbl">Room</span></button>
+      <button class="pill pbtn" id="roomBtn" type="button" title="Invite a friend"><span id="roomLbl">Room</span></button>
       <span class="pill" id="who"><span id="whoLbl">1 on the floor</span></span>
+      <span class="pill watch" id="watchPill" hidden><span>Watching</span></span>
+      <button class="pill pbtn" id="hostBtn" type="button" hidden>Host · lab</button>
+      <button class="pill pbtn" id="stageBtn" type="button" aria-pressed="false" title="Big-screen view for showing people">Stage</button>
       <button class="pill pbtn" id="soundBtn" type="button" aria-pressed="false">Sound off</button>
     </div>
     <div class="stats">
@@ -74,15 +79,26 @@
       <div class="stat"><span>VWAP</span><b id="sVwap">-</b></div>
       <div class="stat"><span>Volume</span><b id="sVol">-</b></div>
     </div>
+    <div class="stagejoin" id="stageJoin">Join the floor: <b id="stageUrl"></b></div>
   </header>
+
+  <section class="intel" id="intel" aria-label="Market intelligence">
+    <div class="ic regime"><span class="lbl">Regime</span><b id="regime">CALM</b><small id="regimeSince">derived from vol, flow, depth</small></div>
+    <div class="ic psych"><canvas id="psych" width="96" height="96" aria-label="Floor psychology: bull/bear by fear/greed"></canvas><div><span class="lbl">Floor psychology</span><b id="psychLbl">NEUTRAL</b><small id="split">AI floor: -</small></div></div>
+    <div class="ic flow"><span class="lbl">Order flow · 30s</span><div class="bal"><i class="b" id="flowB"></i><i class="s" id="flowS"></i></div><small id="flowTxt">-</small><div class="sigs" id="sigs"></div></div>
+    <div class="ic teams"><span class="lbl">Humans vs AI floor</span><div class="vs"><span>HUMANS <b id="hRet">-</b></span><span>AI <b id="aRet">-</b></span></div><small id="leader">-</small></div>
+    <div class="ic smart"><span class="lbl">Smart money</span><b id="smart">-</b><small id="smartSub">best-calibrated trader's position</small></div>
+  </section>
 
   <main class="grid">
     <section class="panel p-chart" aria-label="Price chart">
-      <div class="ph"><h2 id="chartTitle">HLCN</h2><small id="chartSub">5-second candles</small><span class="sp"></span><div class="legend"><span><b>#</b> headline</span><span>▲▼ fills</span><span>shaded: halt</span></div><div class="mini" id="speed" role="group" aria-label="Simulation speed"><button type="button" data-s="0" aria-pressed="false">Pause</button><button type="button" data-s="1" aria-pressed="true">1×</button><button type="button" data-s="3" aria-pressed="false">3×</button></div><button class="btn hostonly" id="resetBtn" type="button" hidden>Reset</button></div>
+      <div class="ph"><h2 id="chartTitle">HLCN</h2><small id="chartSub">5-second candles</small><span class="sp"></span><div class="legend"><span><b>#</b> headline</span><span>▲▼ fills</span><span>shaded: halt</span></div><div class="mini hostonly" id="speed" role="group" aria-label="Simulation speed"><button type="button" data-s="0" aria-pressed="false">Pause</button><button type="button" data-s="1" aria-pressed="true">1×</button><button type="button" data-s="3" aria-pressed="false">3×</button></div></div>
       <div class="chartbox">
         <canvas id="chart" role="img" aria-label="Candlestick chart"></canvas>
         <div class="haltbanner" id="haltBanner" hidden><span id="haltTitle">Limit down</span><small id="haltSub">Circuit breaker · trading halted</small></div>
         <div class="pausebanner" id="pauseBanner" hidden>Paused by the host</div>
+        <div class="actbanner" id="actBanner" hidden><b id="actTitle"></b><span id="actSub"></span></div>
+        <div class="ribbon" id="ribbon" hidden><i></i><span id="ribbonTxt"></span></div>
       </div>
     </section>
 
@@ -98,7 +114,8 @@
           <button class="btn" id="surpriseBtn" type="button">Claude writes the news</button>
           <button class="btn" id="checkBtn" type="button">Floor check</button>
           <button class="btn" id="wrapBtn" type="button">Market wrap</button>
-          <label class="toggle"><input type="checkbox" id="deep"> Deep think (slower)</label>
+          <label class="toggle"><input type="checkbox" id="debateT"> Floor debate</label>
+          <label class="toggle hostonly" id="deepWrap"><input type="checkbox" id="deep"> Deep think</label>
         </div>
         <div class="status" id="status" aria-live="polite"></div>
         <div class="wrapout" id="wrap" hidden><h3>Market wrap</h3><div id="wrapText"></div></div>
@@ -107,13 +124,18 @@
     </section>
 
     <section class="panel p-floor" aria-label="AI traders">
-      <div class="ph"><h2>The floor</h2><small>6 AI traders · tap one to question them</small></div>
+      <div class="ph"><h2>The floor</h2><small>6 AI traders · calls scored after 60s · tap to question</small></div>
       <ul class="chatter" id="chatter" hidden aria-label="Floor chatter" aria-live="polite"></ul>
       <div class="floor" id="floor"></div>
     </section>
 
+    <section class="panel p-story" aria-label="Storyline">
+      <div class="ph"><h2>Storyline</h2><small>what just happened, as it happens</small></div>
+      <ol class="story" id="story"></ol>
+    </section>
+
     <section class="panel p-you" aria-label="Your seat">
-      <div class="ph"><h2>Your seat</h2><small>$1M · beat the machines</small></div>
+      <div class="ph"><h2>Your seat</h2><small id="seatSub">$1M · beat the machines</small></div>
       <div class="you">
         <div class="youstats">
           <div class="stat"><span>Position</span><b id="yPos">0</b></div>
@@ -132,13 +154,14 @@
           <button class="btn" id="flatBtn" type="button">Flatten</button>
         </div>
         <div class="toast" id="toast" aria-live="polite">Market orders hit the same book the AI trades on.</div>
+        <div class="badges" id="myBadges"></div>
         <h3 class="sub">Standings</h3>
         <ol class="stand" id="stand"></ol>
       </div>
     </section>
 
     <section class="panel p-book" aria-label="Order book">
-      <div class="ph"><h2>Order book</h2><small>coloured squares = AI and player orders resting</small></div>
+      <div class="ph"><h2>Order book</h2><small>squares = AI and player orders resting</small></div>
       <div class="book" id="book"></div>
     </section>
 
@@ -147,30 +170,70 @@
       <ul class="tape" id="tape"></ul>
     </section>
   </main>
-  <p class="fine foot" id="foot">Fake money only. Nothing here places real orders.</p>
+  <p class="fine foot" id="foot">SIM = simulated exchange · REAL = real market data · LIVE = real headline · AI = written by Claude · PLAYER = typed by a player · SCENARIO = scripted event. Fake money only.</p>
+</div>
+
+<div class="dock" id="dock" hidden>
+  <div class="dk"><b class="num" id="dPx">-</b><span id="dPos">0 sh</span><span id="dPnl2">$0</span></div>
+  <button class="dsize" id="dSize" type="button" aria-label="Order size">500</button>
+  <button class="bb buy" id="dBuy" type="button">Buy</button>
+  <button class="bb sell" id="dSell" type="button">Sell</button>
 </div>
 
 <div class="scrim" id="scrim" hidden></div>
 <aside class="drawer" id="drawer" hidden aria-label="Trader detail">
-  <div class="dh"><span class="dot"></span><h2 id="dName">-</h2><button class="x" id="dClose" type="button" aria-label="Close">×</button></div>
+  <div class="dh"><span class="dot"></span><h2 id="dName">-</h2><span class="stars" id="dStars"></span><button class="x" id="dClose" type="button" aria-label="Close">×</button></div>
   <div class="db">
     <p class="voice" id="dVoice"></p>
     <div class="youstats">
-      <div class="stat"><span>Position</span><b id="dPos">-</b></div>
+      <div class="stat"><span>Position</span><b id="dPosD">-</b></div>
       <div class="stat"><span>Cash</span><b id="dCash">-</b></div>
       <div class="stat"><span>P&amp;L</span><b id="dPnl">-</b></div>
     </div>
+    <div id="dRecord"></div>
     <form class="askform" id="askForm" autocomplete="off">
       <input id="askInput" maxlength="300" placeholder="Ask them anything…" aria-label="Question for this trader">
       <button class="btn" type="submit" id="askBtn">Ask</button>
     </form>
     <div class="answer" id="answer"></div>
+    <h3 class="sub">Confidence vs reality</h3>
+    <div id="dCalib"></div>
     <h3 class="sub">Lessons they taught themselves</h3>
     <ol class="lessons" id="dLessons"></ol>
     <h3 class="sub">Their calls today</h3>
     <ul class="hist" id="dHist"></ul>
   </div>
 </aside>
+
+<aside class="drawer hostpanel" id="hostPanel" hidden aria-label="Host controls">
+  <div class="dh"><h2>Host · lab</h2><button class="x" id="hClose" type="button" aria-label="Close">×</button></div>
+  <div class="db">
+    <h3 class="sub">Invite</h3>
+    <div class="links"><button class="btn" id="copyPlay" type="button">Copy player link</button><button class="btn" id="copyWatch" type="button">Copy watch link</button></div>
+    <div id="scenBox"><h3 class="sub">Scenarios</h3><p class="voice">Scripted events with real causes: the engine, the order book and the six traders all react.</p><div class="scen" id="scenList"></div></div>
+    <h3 class="sub">Lab</h3>
+    <label class="slider"><span>Volatility <b id="volV">1.0×</b></span><input type="range" id="labVol" min="0.25" max="3" step="0.25" value="1"></label>
+    <label class="slider"><span>Liquidity <b id="liqV">1.0×</b></span><input type="range" id="labLiq" min="0.25" max="2" step="0.25" value="1"></label>
+    <div class="lrow"><span>AI risk appetite</span><div class="seg small" id="labApp"><button type="button" data-v="cautious">Cautious</button><button type="button" data-v="normal">Normal</button><button type="button" data-v="aggressive">Aggressive</button></div></div>
+    <div class="lrow"><span>Floor debate</span><div class="seg small" id="labDeb"><button type="button" data-v="off">Off</button><button type="button" data-v="major">Live news</button><button type="button" data-v="always">Always</button></div></div>
+    <div class="lrow"><span>AI memory (track records)</span><div class="seg small" id="labMem"><button type="button" data-v="on">On</button><button type="button" data-v="off">Off</button></div></div>
+    <div class="lrow" id="autoRow"><span>Claude writes news every</span><div class="seg small" id="labAuto"><button type="button" data-v="0">Never</button><button type="button" data-v="120">2 min</button><button type="button" data-v="300">5 min</button></div></div>
+    <p class="voice">Seed <b id="seedV">-</b>: the same seed replays the same simulated crowd.</p>
+    <h3 class="sub">Session</h3>
+    <div class="links"><button class="btn" id="closeBtn" type="button">Ring the closing bell</button><button class="btn" id="resetBtn" type="button">New session</button></div>
+  </div>
+</aside>
+
+<div class="recap" id="recap" hidden role="dialog" aria-label="Daily wrap">
+  <div class="recapbox">
+    <div class="rh"><h2>The Pit · Daily wrap</h2><button class="x" id="rClose" type="button" aria-label="Close">×</button></div>
+    <div id="recapBody"></div>
+    <div class="narr" id="recapNarr"></div>
+    <div class="links"><button class="btn primary hostonly" id="rNew" type="button">Start a new session</button></div>
+  </div>
+</div>
+
+<div class="ach" id="ach" hidden><b id="achTitle"></b><span id="achDesc"></span></div>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
