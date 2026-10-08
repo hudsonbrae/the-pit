@@ -275,7 +275,8 @@ function renderIntel() {
   rg.dataset.r = v.regime.name;
   $('#regime').textContent = v.regime.name;
   const secs = Math.max(0, Math.round((G.t - v.regime.since) * DT));
-  $('#regimeSince').textContent = `for ${secs < 90 ? secs + 's' : Math.round(secs / 60) + ' min'} · vol ${v.stats.rv} bps/min`;
+  const volL = v.stats.rv < 150 ? 'calm' : v.stats.rv < 250 ? 'elevated' : 'high';      // calm-market 1-min RV ≈ 125 bps (measured)
+  $('#regimeSince').textContent = `for ${secs < 90 ? secs + 's' : Math.round(secs / 60) + ' min'} · volatility ${volL} (${v.stats.rv} bps/min)`;
   $('#psychLbl').textContent = v.psych.label;
   const sp = v.psych.split;
   $('#split').textContent = sp.buy + sp.sell + sp.hold ? `AI floor: ${sp.buy} buy · ${sp.sell} sell · ${sp.hold} hold` : 'AI floor: no calls yet';
@@ -284,7 +285,8 @@ function renderIntel() {
   drawPsych(v);
   const tot = v.book.buyV + v.book.sellV || 1;
   $('#flowB').style.width = (v.book.buyV / tot * 100) + '%'; $('#flowS').style.width = (v.book.sellV / tot * 100) + '%';
-  $('#flowTxt').textContent = `buy ${fi(v.book.buyV)} · sell ${fi(v.book.sellV)} · spread ${v.book.spr} bps · depth ${fi(v.book.depth)}`;
+  const liqL = v.book.depthRatio < 0.6 ? 'thin' : v.book.depthRatio > 1.3 ? 'deep' : 'normal';
+  $('#flowTxt').textContent = `imbalance ${v.book.imb > 0 ? '+' : ''}${Math.round(v.book.imb * 100)}% · liquidity ${liqL} · spread ${v.book.spr} bps · buy ${fi(v.book.buyV)} / sell ${fi(v.book.sellV)}`;
   $('#sigs').innerHTML = (v.book.signals.length ? v.book.signals : ['BALANCED']).map(s => `<span class="${/AGGRESSIVE|SWEPT|THINNING|WALL|STACKED/.test(s) ? 'hot' : ''}">${esc(s)}</span>`).join('');
   const hr = v.teams.human, ar = v.teams.ai;
   $('#hRet').textContent = hr.n ? `${hr.ret >= 0 ? '+' : ''}${hr.ret.toFixed(2)}%` : '-'; $('#hRet').className = sgn(hr.ret);
@@ -778,6 +780,8 @@ function paintDrawer() {
   const s = G.stats[a.id];
   $('#drawer').style.setProperty('--c', `var(--a-${a.id})`);
   $('#dName').textContent = a.name; $('#dVoice').textContent = `${a.tag}. ${a.voice}`;
+  const cat = (x: { cat: string; c: number; n: number } | null | undefined) => x ? `${x.cat} news, ${x.c} of ${x.n} right` : 'not enough calls yet';
+  $('#dPlay').innerHTML = `<div><b>Playbook</b>${esc(a.playbook)}</div><div><b>Claimed edge</b>${esc(a.edge)} <span class="voice">Measured best: ${esc(cat(s?.bestCat))}</span></div><div><b>Known flaw</b>${esc(a.flaw)} <span class="voice">Measured worst: ${esc(cat(s?.worstCat))}</span></div>`;
   $('#dStars').textContent = s?.stars ? '★'.repeat(s.stars) + '☆'.repeat(5 - s.stars) : '';
   paintDrawerLive();
   if (s && (s.calls || s.trades)) {
@@ -791,6 +795,7 @@ function paintDrawer() {
       <div class="stat"><span>Streak</span><b>${s.streak > 0 ? s.streak + ' right' : s.streak < 0 ? -s.streak + ' wrong' : '-'}</b></div>
       <div class="stat"><span>Return today</span><b class="${sgn(s.roi)}">${s.roi > 0 ? '+' : ''}${s.roi.toFixed(2)}%</b></div>
       <div class="stat"><span>Max drawdown</span><b class="${s.maxDD > 0 ? 'down' : ''}">${s.maxDD ? '−' + s.maxDD.toFixed(2) + '%' : '-'}</b></div>
+      <div class="stat"><span>Avg holding</span><b>${s.avgHold != null ? (s.avgHold < 120 ? s.avgHold + 's' : (s.avgHold / 60).toFixed(1) + ' min') : '-'}</b></div>
       <div class="stat"><span>Return / drawdown</span><b>${s.maxDD >= 0.05 ? (s.roi / s.maxDD).toFixed(1) : '-'}</b></div>
     </div><div class="recent">${s.recent.map(x => x ? '<span class="y">✓</span>' : '<span class="n">✗</span>').join('')}</div>
     <div class="badges">${s.badges.map(badgeHtml).join('')}</div>`;

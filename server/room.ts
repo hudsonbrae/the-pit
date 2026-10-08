@@ -138,6 +138,8 @@ export class Room {
   sci = new Science();
   /** This session: peak equity and worst drawdown per account; calls made in the current round; reaction times. */
   private peaks = new Map<string, { peak: number; dd: number }>();
+  /** AI holding periods this session: when the current position was opened, and closed holds so far (ticks). */
+  private holds = new Map<string, { from: number; sum: number; n: number }>();
   private roundRecs: CallRec[] | null = null;
   private headT = -1e9;
   private reacted = new Set<string>();
@@ -213,7 +215,7 @@ export class Room {
     this.intel = new MarketIntel();
     this.sb.pending = []; this.sb.latest.clear();
     this.regimesSeen = ['CALM'];
-    this.peaks.clear(); this.reactions = []; this.reacted.clear(); this.headT = -1e9; this.bestCall = null; this.worstCall = null;
+    this.peaks.clear(); this.holds = new Map(AGENTS.map(a => [a.id, { from: S.t, sum: 0, n: 0 }])); this.reactions = []; this.reacted.clear(); this.headT = -1e9; this.bestCall = null; this.worstCall = null;
     this.pendTrades = []; this.candleSent = S.cur!.idx; this.haltSig = ''; this.newFills = []; this.newMarkers = []; this.pendEv = [];
   }
 
@@ -327,7 +329,7 @@ export class Room {
 
   private agentV(a: AgentRT): AgentV {
     return {
-      id: a.id, name: a.name, tag: a.tag, voice: a.voice, thought: a.thought, conv: a.conv, lastAct: a.lastAct, lessons: a.lessons, log: a.log.slice(0, 12),
+      id: a.id, name: a.name, tag: a.tag, voice: a.voice, playbook: a.playbook, edge: a.edge, flaw: a.flaw, thought: a.thought, conv: a.conv, lastAct: a.lastAct, lessons: a.lessons, log: a.log.slice(0, 12),
       thinking: a.thinking, call: a.call, signals: a.signals, opening: a.opening, changed: a.changed, budget: a.budget,
     };
   }
@@ -341,6 +343,8 @@ export class Room {
       out[a.id] = {
         calls: s.calls, correct: s.correct, streak: s.streak, trades: s.trades, wins: s.wins, pnl: Math.round(s.pnl), best: s.best, worst: s.worst,
         avgConv: s.calls ? Math.round(s.convSum / s.calls) : 0, recent: s.recent, stars: stars(s), badges: this.sb.badges(a.id), calibration: this.sb.calibration(a.id),
+        ...this.cats(s),
+        avgHold: (() => { const h = this.holds.get(a.id); return h?.n ? Math.round(h.sum / h.n * 0.25) : null; })(),
         roi: +(this.pnlFrac(a.id) * 100).toFixed(2), maxDD: +((this.peaks.get(a.id)?.dd ?? 0) * 100).toFixed(2),
         tend: { fol: [s.fol.c, s.fol.n], fade: [s.fade.c, s.fade.n], stress: [s.stress.c, s.stress.n] },
       };
@@ -424,6 +428,12 @@ export class Room {
     const m: ServerMsg = { k: 'toast', text, area };
     if ('conns' in p) p.conns.forEach(c => this.sendTo(c, m)); else this.sendTo(p, m);
   }
+  private cats(s: TraderStats) {
+    const rows = Object.entries(s.byCat).filter(([k, v]) => k !== 'other' && v.n >= 2).map(([cat, v]) => ({ cat, c: v.correct, n: v.n, r: (v.correct + 1) / (v.n + 2) }));
+    rows.sort((a, b) => b.r - a.r);
+    const best = rows[0], worst = rows.length > 1 ? rows[rows.length - 1] : null;
+    return { bestCat: best ? { cat: best.cat, c: best.c, n: best.n } : null, worstCat: worst && worst.r < best!.r ? { cat: worst.cat, c: worst.c, n: worst.n } : null };
+  }
   private sendStats() { this.broadcast({ k: 'stats', stats: this.statsV(), oracle: this.sb.oracle(), science: this.sci.view() }); }
   science(): ScienceV { return this.sci.view(); }
 
@@ -442,6 +452,11 @@ export class Room {
       else a.cost = after * tr.price;
       if (a.sh === 0) a.cost = 0;
       if (p) p.dirty = true;
+      else if (before !== after && (after === 0 || Math.sign(after) !== Math.sign(before))) {     // an AI position closed or flipped
+        const h = this.holds.get(id) ?? { from: 0, sum: 0, n: 0 };
+        if (before !== 0) { h.sum += tr.t - h.from; h.n++; }
+        h.from = tr.t; this.holds.set(id, h);
+      }
     }
   }
 

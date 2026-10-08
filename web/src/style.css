@@ -508,3 +508,5 @@ body.watching .p-you .seg,body.watching .p-you .tradebtns,body.watching .p-desk 
 @keyframes prevIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
 @media (max-width:640px){.prev{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
 .rcard.rec{border:1px solid var(--amber)}
+.play{display:grid;gap:6px;font:400 13.5px/1.4 var(--sans);margin:4px 0 10px}
+.play b{display:block;font:700 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--c,var(--amber))}

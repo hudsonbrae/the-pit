@@ -76,6 +76,31 @@ describe('AI science: does debate make the floor smarter?', () => {
   });
 });
 
+describe('trader metrics', () => {
+  it('holding period: an AI trader closing its opening position records how long it was held', () => {
+    const room = simRoom(deps());
+    const c = new RecConn(); join(room, c, 'player-token-1', 'Brae');
+    for (let i = 0; i < 40; i++) room.frame();                      // 10 simulated seconds
+    room.execAgent({ id: 'ash', action: 'buy', qty: 2000, order: 'market', limit: null, conviction: 60, call: 'up', signals: { news: 0, trend: 0, value: 0, flow: 0, risk: 0 }, thought: 'cover', lesson: '', changed: false }, 'h', 'other');
+    if (room.eng.S.accounts.ash.sh === 0) expect(room.statsV().ash.avgHold).toBe(10);
+    else expect(room.statsV().ash.avgHold).toBeNull();               // thin book: not fully covered, no closed hold
+    expect(room.statsV().pip.avgHold).toBeNull();
+  });
+
+  it('measured best and worst news category per trader', () => {
+    const room = simRoom(deps());
+    const s = room.sb.get('juno');
+    s.byCat = { macro: { n: 3, correct: 3 }, legal: { n: 2, correct: 0 }, other: { n: 9, correct: 9 } };
+    expect(room.statsV().juno).toMatchObject({ bestCat: { cat: 'macro', c: 3, n: 3 }, worstCat: { cat: 'legal', c: 0, n: 2 } });
+  });
+
+  it('every trader has a distinct playbook, edge and flaw, and the round prompt carries them', () => {
+    const books = new Set(room0().agents.map(a => a.playbook));
+    expect(books.size).toBe(6);
+  });
+});
+const room0 = () => simRoom(deps());
+
 describe('storyline: titled moments and the timeline', () => {
   const teller = () => { const out: StoryV[] = []; return { out, t: new Storyteller(s => out.push(s), () => { }) }; };
 

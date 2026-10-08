@@ -43,7 +43,7 @@ export interface NewsV {
 export type Signals = { news: number; trend: number; value: number; flow: number; risk: number };
 
 export interface AgentV {
-  id: string; name: string; tag: string; voice: string;
+  id: string; name: string; tag: string; voice: string; playbook: string; edge: string; flaw: string;
   thought: string; conv: number;
   lastAct: { side: string; label: string; fill: string; queued?: boolean } | null;
   lessons: string[];
@@ -66,6 +66,9 @@ export interface TraderStatsV {
   calibration: { lo: number; hi: number; n: number; acc: number | null }[];
   /** This session: return on starting equity and the worst peak-to-trough drop, both in %. */
   roi: number; maxDD: number;
+  /** Measured: the news category they call best and worst (2+ calls each), and the average holding before they reverse, in sim seconds. */
+  avgHold: number | null;
+  bestCat: { cat: string; c: number; n: number } | null; worstCat: { cat: string; c: number; n: number } | null;
   /** Accuracy (%) with the AI majority, against it, and in stressed regimes; null until 3+ calls. */
   tend: { fol: [number, number]; fade: [number, number]; stress: [number, number] };
 }
