@@ -17,7 +17,10 @@ headlines drive the simulation.
 - **Six AI traders with memory.** Every decision is a **call** (up, down or flat in 60 s, with a conviction) plus five **signals** (news, trend, value, flow, risk) and a one-line public rationale. No chain of thought is shown. Sixty seconds later reality scores the call. Each trader builds a track record, a confidence-vs-reality calibration, a reputation (ORACLE, HOT HAND, COLD, OVERCONFIDENT) and a risk budget the engine enforces. All of it goes into their next prompt: "you were wrong on the last management headline".
 - **Floor debates.** On big news the six state opening views, challenge each other by name, and commit. Mind changes are shown and narrated.
 - **Market intelligence**, all derived from state: the regime (calm, trending, volatile, panic, euphoria, liquidity crunch, halted), a fear/greed × bull/bear psychology map, order-flow and book signals (sell walls, thinning liquidity, aggressive buying), Humans vs AI, and smart money.
-- **A storyline** that writes itself ("Kestrel called it: DOWN at 94%, HLCN −8.1%", "Brae sold 2,100 right before a −8.1% move: +$17,014"), five tasteful achievements, and a **closing bell** with a Daily Wrap that Claude narrates.
+- **A storyline** that writes itself, with titled moments ("10:42 · THE FLOOR SPLITS", "THE REVERSAL", "HUMANS VS MACHINES", "ALL IN") and a **Timeline** tab that logs every headline, desk read, AI decision, big trade and scored call. Five tasteful achievements, and a **closing bell** with a Daily Wrap that Claude narrates: best and worst call, fastest human reaction, new records.
+- **AI science, live.** In a debated round both the opening view and the final call are scored, so the room measures whether arguing made the floor smarter (vs no-debate rounds as the control). Plus herding by regime, measured "twins" and "rivals", each trader's accuracy with and against the crowd (fed back into their prompt), and whether the desk's read pointed the right way.
+- **Legends and "Previously on The Pit".** All-time records across every room (best session, biggest win over the AI floor, fastest reaction, longest AI streak, wildest session) in the lobby, and each new session opens with what happened last time.
+- **Host chaos controls:** news shock, flash crash, short squeeze, liquidity crisis, earnings beat/miss, AI panic, AI euphoria, market halt. One tap each.
 - **Scenarios** with causal engine effects (flash crash, short squeeze, earnings beat/miss, black swan, liquidity crisis) and a reproducible **9-act demo**.
 - **Real Market mode:** real quotes anchor fair value, and real headlines arrive marked LIVE and are debated automatically.
 - **Made for showing people:** a phone trade dock, **Stage** mode for a TV, spectators (`?watch=1`), and provenance on every number (SIM / REAL / LIVE / PLAYER / AI / SCENARIO).
@@ -43,8 +46,8 @@ Open the app on a laptop and tap **Run the demo**, then **Stage**. Send the room
 
 ```bash
 npm run typecheck
-npm test            # 81 unit, chaos and security tests (~10 s)
-npm run test:e2e    # 8 Playwright tests: two browsers, phone dock, the full demo, spectators (~2 min)
+npm test            # 107 unit, chaos and security tests (~10 s)
+npm run test:e2e    # 9 Playwright tests: two browsers, phone dock, the full demo, spectators, chaos → recap → Legends (~2 min)
 npm run soak        # 10-minute soak: memory, delta smoothness, event-loop delay
 ```
 
@@ -52,4 +55,4 @@ Everything is tested against mocks, so no keys and no spending are needed. Resul
 
 ## Working on it with Claude Code
 
-`CLAUDE.md` has the project rules. `.claude/skills/` has `pit-verify`, `pit-demo-check`, `pit-security-audit` and `pit-prompt-audit`. `.claude/agents/` has engine, security and mobile-UX reviewers. A Stop hook won't let a turn end with a failing typecheck or unit test.
+`CLAUDE.md` has the project rules. `.claude/skills/` has `pit-verify`, `pit-demo-check`, `pit-security-audit`, `pit-prompt-audit` and `pit-handoff`. `.claude/agents/` has engine, security and mobile-UX reviewers. A SessionStart hook installs dependencies in a fresh container and prints `docs/SESSION_STATE.md`; a Stop hook won't let a turn end with a failing typecheck or unit test.

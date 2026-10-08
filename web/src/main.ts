@@ -292,7 +292,7 @@ function renderIntel() {
   const L = v.teams.leader;
   $('#leader').textContent = !hr.n ? 'no human trades yet' : L ? (L.human ? `${(L.id === G.me?.id ? 'YOU ARE' : L.name.toUpperCase() + ' IS')} #1` : `${L.name} leads · ${hr.ret > ar.ret ? 'humans ahead' : 'AI ahead'}`) : '-';
   if (v.smart) { const n = NAMES[v.smart.id]?.name ?? v.smart.id; $('#smart').textContent = `${n} ${v.smart.sh > 0 ? 'LONG' : v.smart.sh < 0 ? 'SHORT' : 'FLAT'}`; $('#smartSub').textContent = `${fi(Math.abs(v.smart.sh))} sh · the floor's oracle`; }
-  else { $('#smart').textContent = '-'; $('#smartSub').textContent = 'needs 5+ scored calls'; }
+  else { $('#smart').textContent = '-'; $('#smartSub').textContent = 'needs 3+ scored calls'; }
 }
 function drawPsych(v: IntelV) {
   const dpr = window.devicePixelRatio || 1, S = 64;

@@ -64,7 +64,9 @@ you load yourself, and you'll set a hard monthly limit on it in step 1.
    **New query**. Open the file [`supabase/schema.sql`](supabase/schema.sql)
    from this repo, copy **all** of it, paste it into the editor, and click
    **Run**. You should see "Success. No rows returned". (The file is safe to
-   run again whenever it changes: it only adds what's missing.)
+   run again whenever it changes: it only adds what's missing. **If you set
+   up the database before the Legends were added, run it once more** so the
+   `legends` table exists. Until then the records just live in memory.)
 4. **Copy the two values the app needs:**
    - **Project URL:** click **Connect** at the top of the project page (or
      **Project Settings → Data API**). It looks like
@@ -156,18 +158,23 @@ open the Supabase dashboard and click **Restore project**.
 **The fastest way to show someone: run the demo.**
 
 1. On a laptop (or a TV), open your Render link and tap **Run the demo**. A
-   scripted, six-minute story plays out: a calm open, a bombshell, a floor
-   debate, a crash, a halt, a twist, and then the scores. Tap **Stage** at the
+   scripted story of about 2½ minutes plays out: a calm open, a bombshell, a
+   floor debate, a crash, a halt, a twist, and then the scores. Tap **Stage** at the
    top for the big-screen layout.
 2. Tap **Room XXXXX · invite** and send the link to your friend's phone. They
    type a name and trade from the bar at the bottom of their screen while it
    happens.
-3. When it ends, everyone sees the **Daily wrap**. As host, tap **Start a new
-   session** to play again. The traders remember how they did.
+3. When it ends, everyone sees the **Daily wrap** (best and worst AI call,
+   fastest human reaction, any **new record**). As host, tap **Start a new
+   session** to play again: it opens with "Previously on The Pit", and the
+   traders remember how they did.
 
-The "Host · lab" button (host only) has the other scenarios (flash crash,
-short squeeze, earnings, black swan, liquidity crisis), the market dials, and
-the **closing bell**.
+The "Host · lab" button (host only) has **chaos controls** (one tap: news
+shock, flash crash, short squeeze, liquidity crisis, earnings beat or miss, AI
+panic, AI euphoria, market halt), the longer scenarios, the market dials, and
+the **closing bell**. The **AI SCIENCE** strip above the traders opens the
+live experiment: is the floor right more often after it debates? The lobby
+shows the **Legends**, the all-time records on your server.
 
 **A real stock:**
 

@@ -1,5 +1,12 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/hooks/session-start.sh\"", "timeout": 180 }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

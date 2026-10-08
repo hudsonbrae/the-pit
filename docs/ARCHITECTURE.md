@@ -32,6 +32,7 @@
                                     Sonnet: rounds, debates              rooms · players · lessons
                                     Haiku: headlines, ask, narrator      trader_stats · news_log
                                     cost guard · watchdog · offline      leaderboards · ai_usage_daily
+                                                                         legends
 ```
 
 ## The loop that makes it feel alive
@@ -42,7 +43,8 @@
 4. **The engine decides what is legal.** `ai/schema.ts` validates each line; risk budgets and position limits are enforced; orders hit the real book, 0.7 s apart.
 5. **The market reacts.** Crowd bots chase fair value, and market makers widen and shrink under stress. Halts fire. Intel recomputes regime, psychology and book signals once a second.
 6. **Reality scores the AI.** Sixty simulated seconds later every call is scored. Track records, calibration, streaks and the Oracle update. A trader on a cold streak or in drawdown gets a smaller risk budget, and all of it goes into the next prompt.
-7. **The story is told.** The storyteller turns moves, splits, scored calls, timing, halts and leader changes into the live storyline. The closing bell assembles them into the Daily Wrap, and the narrator model writes the match report.
+7. **The room learns about itself.** Each scored call also feeds the science module (did the debate change the call, and was the new call right? did the trader go with or against the floor? was the market stressed?). Tendencies and measured relationships go back into the prompts.
+8. **The story is told.** The storyteller turns moves, splits, scored calls, timing, halts and leader changes into the live storyline. The closing bell assembles them into the Daily Wrap, and the narrator model writes the match report.
 
 ## Modules
 
@@ -52,8 +54,10 @@
 | `server/room.ts` | One room: frame loop, deltas, players and spectators, AI rounds and debates, scoring, scenarios, lab, closing bell |
 | `server/intel/stats.ts` | Scorebook: calls → track records, calibration, reputation, risk budgets, similar past setups |
 | `server/intel/market.ts` | Regime, psychology, order-book signals, smart money (observable state only) |
-| `server/intel/stories.ts` | Storyline and achievements |
-| `server/scenarios.ts` | Scripted events with causal engine effects; the 9-act demo |
+| `server/intel/stories.ts` | Storyline (titled moments + the timeline), detectors (reversal, humans vs machines, all-in), achievements |
+| `server/intel/science.ts` | The running experiment: opening vs final vs no-debate accuracy, herding by regime, twins/rivals, desk direction |
+| `server/legends.ts` | All-time records across rooms (persisted; memory fallback) |
+| `server/scenarios.ts` | Scripted events with causal engine effects; the 9-act demo; host chaos controls |
 | `server/prompts.ts` | System prompts (rules and format, cached) and data-only user turns (untrusted text tagged) |
 | `server/ai/` | `anthropic.ts` (real), `fake.ts` (mock with personalities), `schema.ts` (validation), `llm.ts` (interface and line splitter) |
 | `server/market/` | `MarketProvider` interface: Finnhub and a mock; `hub.ts` shares polling across rooms |
