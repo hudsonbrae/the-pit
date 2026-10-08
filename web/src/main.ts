@@ -41,8 +41,6 @@ const CODE = (path?.[1] ?? qs ?? '').toUpperCase();
 
 function show(id: 'lobby' | 'joinCard' | 'game') { ['lobby', 'joinCard', 'game'].forEach(x => { $(`#${x}`).hidden = x !== id; }); }
 
-if (!CODE) lobby(); else enter(CODE);
-
 function lobby() {
   show('lobby');
   const nameIn = $<HTMLInputElement>('#nameIn'); nameIn.value = store.get('pit.name') ?? '';
@@ -533,3 +531,6 @@ $('#askForm').addEventListener('submit', e => {
   inp.value = ''; $('#answer').textContent = 'Thinking…'; $<HTMLButtonElement>('#askBtn').disabled = true;
   send({ k: 'ask', id: open.id, q });
 });
+
+// ---------- go ----------
+if (!CODE) lobby(); else void enter(CODE);
