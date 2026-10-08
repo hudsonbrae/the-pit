@@ -246,7 +246,7 @@ function applyDelta(d: ServerMsg & { k: 'd' }) {
   if (d.fills) { G.fills.push(...d.fills); if (G.fills.length > 200) G.fills.splice(0, G.fills.length - 200); }
   if (d.markers) { G.markers.push(...d.markers); if (G.markers.length > 100) G.markers.splice(0, G.markers.length - 100); }
   for (const e of d.ev ?? []) {
-    if (e.type === 'halt') { sfx.halt(); buzz([40, 30, 40]); $('#haltTitle').textContent = `Limit ${e.dir}`; $('#haltBanner').hidden = false; shake(e.dir); }
+    if (e.type === 'halt') { sfx.halt(); buzz([40, 30, 40]); $('#haltTitle').textContent = `Limit ${e.dir}`; $('#haltBanner').hidden = false; $('#actBanner').hidden = true; shake(e.dir); }
     else $('#haltBanner').hidden = true;
   }
   if (G.halted) $('#haltSub').textContent = `Circuit breaker · reopens in ${G.halted}s`;
@@ -283,7 +283,7 @@ function renderIntel() {
   $('#hRet').textContent = hr.n ? `${hr.ret >= 0 ? '+' : ''}${hr.ret.toFixed(2)}%` : '-'; $('#hRet').className = sgn(hr.ret);
   $('#aRet').textContent = `${ar.ret >= 0 ? '+' : ''}${ar.ret.toFixed(2)}%`; $('#aRet').className = sgn(ar.ret);
   const L = v.teams.leader;
-  $('#leader').textContent = !hr.n ? 'no humans on the floor yet' : L ? (L.human ? `${(L.id === G.me?.id ? 'YOU ARE' : L.name.toUpperCase() + ' IS')} #1` : `${L.name} leads · ${hr.ret > ar.ret ? 'humans ahead' : 'AI ahead'}`) : '-';
+  $('#leader').textContent = !hr.n ? 'no human trades yet' : L ? (L.human ? `${(L.id === G.me?.id ? 'YOU ARE' : L.name.toUpperCase() + ' IS')} #1` : `${L.name} leads · ${hr.ret > ar.ret ? 'humans ahead' : 'AI ahead'}`) : '-';
   if (v.smart) { const n = NAMES[v.smart.id]?.name ?? v.smart.id; $('#smart').textContent = `${n} ${v.smart.sh > 0 ? 'LONG' : v.smart.sh < 0 ? 'SHORT' : 'FLAT'}`; $('#smartSub').textContent = `${fi(Math.abs(v.smart.sh))} sh · the floor's oracle`; }
   else { $('#smart').textContent = '-'; $('#smartSub').textContent = 'needs 5+ scored calls'; }
 }
@@ -340,7 +340,7 @@ function paintAgent(a: AgentV, flash?: boolean) {
   }
   (el.querySelector('[data-conv]') as HTMLElement).style.width = a.conv + '%';
   const act = el.querySelector('[data-act]')!;
-  if (!a.lastAct) act.innerHTML = `<span class="side hold">Pre-market</span>`;
+  if (!a.lastAct) act.innerHTML = `<span class="side hold">No trades yet</span>`;
   else act.innerHTML = `<span class="side ${esc(a.lastAct.side)}">${esc(a.lastAct.label)}</span><span class="fill">${esc(a.lastAct.fill || '')}</span>`;
   const op = el.querySelector('[data-open]') as HTMLElement;
   if (a.opening) {
@@ -595,7 +595,10 @@ function setRound(r: RoundState) {
   rb.hidden = !r.busy;
   if (r.busy) $('#ribbonTxt').textContent = `${r.phase === 'debate' ? 'FLOOR DEBATE' : 'AI ROUND'} · ${r.status ?? ''}${r.by ? ' · ' + r.by : ''}`;
   if (!r.busy) G.agents.forEach(a => { if (a.thinking) { a.thinking = null; paintAgent(a); } });
+  clearTimeout(chatterTimer);
+  if (!r.busy) chatterTimer = window.setTimeout(() => { $('#chatter').hidden = true; }, 25_000);   // the debate fades once it's history
 }
+let chatterTimer = 0;
 function shake(dir: 'up' | 'down') { document.body.classList.remove('shake-up', 'shake-down'); void document.body.offsetWidth; document.body.classList.add(dir === 'up' ? 'shake-up' : 'shake-down'); }
 
 function addChatter(o: ChatterV, live: boolean) {
@@ -612,6 +615,7 @@ function addChatter(o: ChatterV, live: boolean) {
 let actTimer = 0;
 function showAct(title: string, sub: string) {
   const b = $('#actBanner'); b.hidden = true; void b.offsetWidth;
+  if (!$('#haltBanner').hidden && !/HALT/.test(title)) return;      // the halt banner wins
   $('#actTitle').textContent = title; $('#actSub').textContent = sub; b.hidden = false;
   sfx.act();
   clearTimeout(actTimer); actTimer = window.setTimeout(() => { b.hidden = true; }, 4600);
@@ -626,14 +630,15 @@ function showAch(title: string, desc: string) {
 function showRecap(r: RecapV) {
   const card = (k: string, v: string, p = '') => `<div class="rcard"><span>${esc(k)}</span><b>${v}</b>${p ? `<p>${p}</p>` : ''}</div>`;
   const chg = r.close / r.open - 1;
-  const top = r.standings.slice(0, 5).map((s, i) => `${i + 1}. ${esc(s.name)}${s.human ? ' (human)' : ''} <span class="${sgn(s.pnl)}">${money(s.pnl)}</span>`).join('<br>');
+  const top = r.standings.map((s, i) => `${i + 1}. ${esc(s.name)}${s.human ? ' (human)' : ''} <span class="${sgn(s.pnl)}">${money(s.pnl)}</span>`).join('<br>');
   const humans = r.standings.some(s => s.human);
+  const sat = r.humans.traded === 0;
   $('#recapBody').innerHTML = `<div class="rgrid">
     ${card(r.ticker, `${f2(r.close)} <small class="${sgn(chg)}">${chg >= 0 ? '+' : ''}${(chg * 100).toFixed(2)}%</small>`, `open ${f2(r.open)} · high ${f2(r.hi)} · low ${f2(r.lo)} · ${fi(r.volume)} shares · ${r.halts} halt${r.halts === 1 ? '' : 's'}`)}
     ${card('Standings', '', top)}
-    ${humans ? card('Humans vs AI', `${r.humans.ret >= r.ai.ret ? 'HUMANS WIN' : 'AI WINS'}`, `humans ${r.humans.ret >= 0 ? '+' : ''}${r.humans.ret.toFixed(2)}% · AI floor ${r.ai.ret >= 0 ? '+' : ''}${r.ai.ret.toFixed(2)}%`) : ''}
+    ${humans ? card('Humans vs AI', sat ? 'HUMANS SAT OUT' : r.humans.ret >= r.ai.ret ? 'HUMANS WIN' : 'AI WINS', sat ? `nobody traded · AI floor ${r.ai.ret >= 0 ? '+' : ''}${r.ai.ret.toFixed(2)}%` : `humans ${r.humans.ret >= 0 ? '+' : ''}${r.humans.ret.toFixed(2)}% · AI floor ${r.ai.ret >= 0 ? '+' : ''}${r.ai.ret.toFixed(2)}%`) : ''}
     ${r.mostAccurate ? card('Most accurate AI', esc(r.mostAccurate.name), `${r.mostAccurate.correct} of ${r.mostAccurate.calls} calls right`) : ''}
-    ${r.biggestHeadline ? card('Biggest headline', `${r.biggestHeadline.impact > 0 ? '+' : ''}${r.biggestHeadline.impact.toFixed(1)}%`, esc(r.biggestHeadline.text) + (r.biggestHeadline.moved != null ? ` · moved ${r.biggestHeadline.moved > 0 ? '+' : ''}${r.biggestHeadline.moved}% in 60s` : '')) : ''}
+    ${r.biggestHeadline ? card('Biggest headline', r.biggestHeadline.moved != null ? `${r.biggestHeadline.moved > 0 ? '+' : ''}${r.biggestHeadline.moved.toFixed(1)}% in 60s` : `${r.biggestHeadline.impact > 0 ? '+' : ''}${r.biggestHeadline.impact.toFixed(1)}%`, esc(r.biggestHeadline.text) + ` · the desk called it ${r.biggestHeadline.impact > 0 ? '+' : ''}${r.biggestHeadline.impact.toFixed(1)}% to fair value`) : ''}
     ${r.biggestTrade ? card('Biggest trade', `${esc(r.biggestTrade.name)}`, `${r.biggestTrade.side === 'buy' ? 'bought' : 'sold'} ${fi(r.biggestTrade.qty)} @ ${f2(r.biggestTrade.price)}`) : ''}
     ${r.mostSplit ? card('Most controversial', 'SPLIT', esc(r.mostSplit)) : ''}
     ${card('Regimes', '', esc(r.regimes.join(' → ')))}
@@ -734,18 +739,19 @@ function paintDrawer() {
   if (s && (s.calls || s.trades)) {
     const acc = s.calls ? Math.round(s.correct / s.calls * 100) : 0;
     $('#dRecord').innerHTML = `<div class="recgrid">
-      <div class="stat"><span>Calls right</span><b>${s.correct}/${s.calls} · ${acc}%</b></div>
-      <div class="stat"><span>Scored trades</span><b>${s.wins}W / ${s.trades - s.wins}L</b></div>
+      <div class="stat"><span>Predictions right</span><b>${s.correct}/${s.calls}${s.calls ? ' · ' + acc + '%' : ''}</b></div>
+      <div class="stat"><span>Trades in profit</span><b>${s.wins} of ${s.trades}</b></div>
       <div class="stat"><span>Avg conviction</span><b>${s.avgConv}%</b></div>
-      <div class="stat"><span>Best trade</span><b class="up">${s.best ? money(s.best.pnl) : '-'}</b></div>
-      <div class="stat"><span>Worst trade</span><b class="down">${s.worst ? money(s.worst.pnl) : '-'}</b></div>
+      <div class="stat"><span>Best trade</span><b class="up">${s.best && s.best.pnl > 0 ? money(s.best.pnl) : '-'}</b></div>
+      <div class="stat"><span>Worst trade</span><b class="down">${s.worst && s.worst.pnl < 0 ? money(s.worst.pnl) : '-'}</b></div>
       <div class="stat"><span>Streak</span><b>${s.streak > 0 ? s.streak + ' right' : s.streak < 0 ? -s.streak + ' wrong' : '-'}</b></div>
     </div><div class="recent">${s.recent.map(x => x ? '<span class="y">✓</span>' : '<span class="n">✗</span>').join('')}</div>
     <div class="badges">${s.badges.map(badgeHtml).join('')}</div>`;
     $('#dCalib').innerHTML = `<div class="calib">${s.calibration.map(c => {
       const mid = (c.lo + c.hi) / 2;
-      return `<div class="cr"><span>${c.lo}–${c.hi}%</span><span class="bars">${c.acc != null ? `<i style="width:${Math.round(c.acc * 100)}%"></i>` : ''}<u style="left:${mid}%"></u></span><span class="note">${c.n ? `${Math.round((c.acc ?? 0) * 100)}% of ${c.n}` : 'no calls'}</span></div>`;
-    }).join('')}<p class="voice">Bar = how often calls at that confidence were right. Amber tick = what that confidence claims.</p></div>`;
+      const few = c.n < 3;
+      return `<div class="cr${few ? ' few' : ''}"><span>${c.lo}–${c.hi}%</span><span class="bars">${!few && c.acc != null ? `<i style="width:${Math.round(c.acc * 100)}%"></i>` : ''}<u style="left:${mid}%"></u></span><span class="note">${!c.n ? 'no calls' : few ? `${c.n} so far` : `${Math.round((c.acc ?? 0) * 100)}% of ${c.n}`}</span></div>`;
+    }).join('')}<p class="voice">Stated confidence (left) against the hit rate (blue bar). The amber tick is what that confidence claims. Shown once a band has 3+ calls.</p></div>`;
   } else {
     $('#dRecord').innerHTML = '<p class="voice">No scored calls yet. Every call is checked 60 seconds after it is made.</p>';
     $('#dCalib').innerHTML = '<p class="voice">Calibration appears after a few scored calls.</p>';

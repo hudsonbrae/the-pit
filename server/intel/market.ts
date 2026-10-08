@@ -16,7 +16,9 @@ export class MarketIntel {
   private v1mEma = 0;
   private crunchTicks = 0;
   regime: Regime = 'CALM';
-  regimeSince = 0;
+  regimeSince = -1;
+  private candidate: Regime | null = null;
+  private candidateN = 0;
   lastHalt: { t: number; dir: 'up' | 'down' } | null = null;
   lastRoundT = -1e9;
   /** Psychology history for the dot's trail (last 20 seconds). */
@@ -56,14 +58,22 @@ export class MarketIntel {
     this.crunchTicks = !S.halted && (spr > 40 || d8ratio < 0.6 || !bidD || !askD) ? this.crunchTicks + 1 : 0;
     let reg: Regime;
     if (S.halted) reg = 'HALTED';
-    else if ((r30 < -0.04 && rv > 250) || haltRecent === 'down') reg = 'PANIC';
-    else if ((r30 > 0.04 && rv > 250) || haltRecent === 'up') reg = 'EUPHORIA';
+    else if (((r30 < -0.04 && rv > 250) || haltRecent === 'down') && r2m < 0) reg = 'PANIC';
+    else if (((r30 > 0.04 && rv > 250) || haltRecent === 'up') && r2m > 0) reg = 'EUPHORIA';   // a bounce inside a crash is VOLATILE, not euphoric
     else if (this.crunchTicks >= 3) reg = 'LIQUIDITY CRUNCH';
     else if (rv > 180) reg = 'VOLATILE';
     else if (Math.abs(r30) > 0.015 && Math.sign(r30) === Math.sign(r10)) reg = r30 > 0 ? 'TRENDING UP' : 'TRENDING DOWN';
     else if (t - this.lastRoundT < 120) reg = 'NEWS-DRIVEN';
     else reg = 'CALM';
-    if (reg !== this.regime) { this.regime = reg; this.regimeSince = t; }
+    if (this.regimeSince < 0) this.regimeSince = t;
+    // hysteresis: a new regime must hold for 3 consecutive seconds (halts switch at once)
+    if (reg === this.regime) { this.candidate = null; this.candidateN = 0; }
+    else if (reg === 'HALTED' || this.regime === 'HALTED') { this.regime = reg; this.regimeSince = t; this.candidate = null; }
+    else {
+      if (reg === this.candidate) this.candidateN++; else { this.candidate = reg; this.candidateN = 1; }
+      if (this.candidateN >= 3) { this.regime = reg; this.regimeSince = t; this.candidate = null; this.candidateN = 0; }
+    }
+    reg = this.regime;
 
     // ---- psychology: bull/bear from the AI floor's live calls + aggressor flow; fear/greed from price, vol and halts ----
     let wsum = 0, net = 0;

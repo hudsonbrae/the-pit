@@ -116,10 +116,10 @@ export class Scorebook {
     }
   }
 
-  /** The AI trader with the best shrunk accuracy, once they have 5+ scored calls. */
+  /** The AI trader with the best shrunk accuracy, once they have 3+ scored calls and beat a coin flip. */
   oracle(): string | null {
     let best: string | null = null, bv = 0.5;
-    for (const a of AGENTS) { const s = this.get(a.id); if (s.calls >= 5 && shrunk(s) > bv) { bv = shrunk(s); best = a.id; } }
+    for (const a of AGENTS) { const s = this.get(a.id); if (s.calls >= 3 && shrunk(s) > bv) { bv = shrunk(s); best = a.id; } }
     return best;
   }
 

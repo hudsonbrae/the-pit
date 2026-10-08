@@ -16,7 +16,7 @@
 <div class="lobby" id="lobby" hidden>
   <div class="lobbybox">
     <div class="brand"><h1>The Pit</h1><p>A live trading floor · six Claude traders · your friends</p></div>
-    <button class="btn primary demo" id="demoBtn" type="button">Run the demo<small>Nine acts, about six minutes. Bring a friend.</small></button>
+    <button class="btn primary demo" id="demoBtn" type="button">Run the demo<small>Nine acts, about 2½ minutes. Bring a friend's phone.</small></button>
     <form class="lobbycard" id="createForm" autocomplete="off">
       <h2>Open a room</h2>
       <label class="fld"><span>Your name</span><input id="nameIn" maxlength="20" placeholder="e.g. Brae" required></label>
@@ -93,12 +93,12 @@
   <main class="grid">
     <section class="panel p-chart" aria-label="Price chart">
       <div class="ph"><h2 id="chartTitle">HLCN</h2><small id="chartSub">5-second candles</small><span class="sp"></span><div class="legend"><span><b>#</b> headline</span><span>▲▼ fills</span><span>shaded: halt</span></div><div class="mini hostonly" id="speed" role="group" aria-label="Simulation speed"><button type="button" data-s="0" aria-pressed="false">Pause</button><button type="button" data-s="1" aria-pressed="true">1×</button><button type="button" data-s="3" aria-pressed="false">3×</button></div></div>
+      <div class="ribbon" id="ribbon" hidden><i></i><span id="ribbonTxt"></span></div>
       <div class="chartbox">
         <canvas id="chart" role="img" aria-label="Candlestick chart"></canvas>
         <div class="haltbanner" id="haltBanner" hidden><span id="haltTitle">Limit down</span><small id="haltSub">Circuit breaker · trading halted</small></div>
         <div class="pausebanner" id="pauseBanner" hidden>Paused by the host</div>
         <div class="actbanner" id="actBanner" hidden><b id="actTitle"></b><span id="actSub"></span></div>
-        <div class="ribbon" id="ribbon" hidden><i></i><span id="ribbonTxt"></span></div>
       </div>
     </section>
 

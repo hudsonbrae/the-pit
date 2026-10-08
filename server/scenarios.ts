@@ -14,31 +14,33 @@ export type Step =
   | { after: number; haltIfNone: 'up' | 'down'; withinTicks: number }
   | { after: number; waitResume: true }
   | { after: number; prompt: string }
-  | { after: number; close: true };
+  | { after: number; close: true }
+  /** Announce how the AI floor's calls on the scenario's first headline were scored (right / wrong). */
+  | { after: number; scoreboard: string; sub?: string };
 
 export interface Scenario { id: string; name: string; desc: string; steps: Step[] }
 
 export const SCENARIOS: Scenario[] = [
   {
-    id: 'demo', name: 'The Demo (9 acts)', desc: 'A calm open, a bombshell, a floor debate, a crash, a halt, a reversal and a closing wrap. About 6 minutes.',
+    id: 'demo', name: 'The Demo (9 acts)', desc: 'A calm open, a bombshell, a floor debate, a crash, a halt, a twist, and then the scores. About 2½ minutes.',
     steps: [
-      { after: 2, act: 'ACT I · THE OPEN', sub: 'A calm market. Six AI traders, real order book, your money.' },
-      { after: 14, act: 'ACT II · BREAKING NEWS', sub: 'A bombshell hits the wire.' },
+      { after: 2, act: 'ACT I · THE OPEN', sub: 'A calm market. Six AI traders, one real order book, and you.' },
+      { after: 12, act: 'ACT II · BREAKING NEWS', sub: 'A bombshell hits the wire.' },
       { after: 2, news: '{co} CFO resigns effective immediately; auditors reviewing revenue recognition', debate: true, debateAct: 'ACT III · THE DEBATE' },
-      { after: 1, act: 'ACT IV · YOUR MOVE', sub: 'The floor has spoken. Buy the panic or join it?' },
-      { after: 1, prompt: 'Your move: the AI floor just traded the CFO news. Buy, sell or hold?' },
-      { after: 12, act: 'ACT V · VOLATILITY', sub: 'Margin calls. Dealers step back. Liquidity drains.' },
+      { after: 1, act: 'ACT IV · YOUR MOVE', sub: 'The floor has traded. Buy the panic, or join it? You have 15 seconds.' },
+      { after: 0, prompt: 'Your move: the AI floor just traded the CFO news. Buy, sell or hold? Volatility is coming.' },
+      { after: 16, act: 'ACT V · VOLATILITY', sub: 'Margin calls. Dealers step back. Liquidity drains.' },
       { after: 0, withdraw: 16, note: 'Market makers pull their quotes.' },
       { after: 0, knobs: { vol: 3, liq: 0.4, spread: 2 }, ticks: 240, note: 'Volatility spikes, liquidity thins.' },
       { after: 0, program: 'sell', perTick: 450, ticks: 14, note: 'A fund dumps its position: forced selling.' },
       { after: 6, haltIfNone: 'down', withinTicks: 160 },
       { after: 0, act: 'ACT VI · HALT', sub: 'Circuit breaker. Six seconds of silence.' },
       { after: 0, waitResume: true },
-      { after: 0, act: 'ACT VII · THE REOPEN', sub: 'Who flinched?' },
-      { after: 10, act: 'ACT VIII · THE TWIST', sub: 'New information. Does the floor reverse?' },
+      { after: 0, act: 'ACT VII · THE REOPEN', sub: 'Who flinched? Watch the tape.' },
+      { after: 14, act: 'ACT VIII · THE TWIST', sub: 'New information. Does the floor reverse?' },
       { after: 1, news: '{co} names respected interim CFO; preliminary audit finds no wrongdoing', debate: false },
-      { after: 62, act: 'ACT IX · THE VERDICT', sub: 'Calls are scored. Who actually read it right?' },
-      { after: 4, close: true },
+      { after: 22, scoreboard: 'ACT IX · THE SCORES', sub: 'Sixty seconds after the CFO news, reality checked every call.' },
+      { after: 40, close: true },
     ],
   },
   {

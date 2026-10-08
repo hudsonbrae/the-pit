@@ -117,4 +117,49 @@ All of this is driven by real state. Nothing is decorative.
 
 ## Specialist review notes
 
-Added after the parallel reviews come back. See the end of this file.
+Five reviews by isolated specialist agents. Every finding was checked
+before acting on it; outcomes are recorded below.
+
+**Engine microstructure (measured: 20–30 seeded runs per experiment).**
+- **Calm market:** spread is 10 bps at the median, top-8 depth about 2,100 per side, 1-minute realised vol about 125 bps.
+- **Impact:** a 5,000-share order sweeps the whole ask side (≈68 bps) and the book refills in about one tick.
+- **Shocks:** every shock of 10% or more halts. Market makers didn't withdraw, and `fvK` stayed in "fast" forever after the first fast shock. The momentum gate was open 77% of the time on pure noise.
+- **Adopted:** stress-aware dealers with a dead-band (my first version had none, and the reviewer measured it doubling calm volatility), the inventory cap, `fvK` decay, and a calmer momentum gate.
+- **Thresholds:** regime and book-signal thresholds were taken from these measurements.
+- **Not adopted:** a fifth backstop quote level. It changes the AI re-park path and needs its own tests.
+
+**Security (first pass): 3 critical crash bugs, all reproduced.**
+- **Crashes:**
+  - an oversized WebSocket frame (no `error` listener);
+  - `GET /%E0%A4%A` (`decodeURIComponent` inside a non-awaited promise);
+  - model output `{"toString":0}` coerced with `String()`.
+- **Also found:**
+  - cost amplification (deep think was client-controlled; ask and wrap were unlimited);
+  - event-loop blocking through resets;
+  - connection and memory exhaustion;
+  - room squatting;
+  - unhashed tokens;
+  - unbounded halt queues;
+  - weak path checks;
+  - missing headers.
+- **Fixed:** all of it, each with a test.
+- **Already fine:** XSS was clean, and no secret reached a browser or a log.
+
+**Mobile and demo UX.**
+- **On a phone, before this pass:**
+  - Buy was three screens down (y = 2,519 px on a 3,891 px page);
+  - the AI round, the show, happened off-screen;
+  - the header took a third of the screen;
+  - landscape put the chart taller than the screen.
+- **Fixed:** the bottom trade dock, the floor carousel directly under the chart, a round ribbon on the chart, a compact header, 40–44 px touch targets, bottom-sheet drawers, a landscape layout, hidden host controls for guests, no keyboard pop-up when opening a drawer, chart label collisions, fill-triangle fan-out, and the `.sub` class collision.
+- **Stage mode:** follows its show/hide list.
+- **Not done:** the QR code; it needs a dependency.
+
+**Security (second pass, on the new code).**
+- **Clean:** no XSS, no traversal, no crash.
+- **Found:** cheap abuse paths: filling the server with empty rooms, draining the shared Haiku budget, dodging per-IP limits with a forged `X-Forwarded-For`, and the admin token appearing in URLs.
+- **Fixed:** all of these (see DECISIONS.md).
+- **Accepted risk:** lesson poisoning only shifts trader behaviour; the engine still bounds every trade.
+
+**Fresh-eyes product review.** See the final section of DECISIONS.md and
+the commit history for the fixes it prompted.

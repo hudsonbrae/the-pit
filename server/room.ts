@@ -10,7 +10,7 @@
 
 import { createHash } from 'node:crypto';
 import { Engine, clock, r2, seeded, type Trade } from './engine.js';
-import { AGENTS, AGENT_IDS, HLCN, SIM_PRE, SIM_PRESETS, realPre, realPresets, type CompanyCtx } from './agents.js';
+import { AGENTS, AGENT_IDS, HLCN, SIM_PRE, SIM_PRESETS, START_SHARES, realPre, realPresets, type CompanyCtx } from './agents.js';
 import {
   SYSTEM_ROUND, SYSTEM_DEBATE_OPEN, SYSTEM_DEBATE_FINAL, roundUser, debateUser, surprisePrompt, wrapPrompt, askPrompt,
   type AgentState, type PromptCtx, type OpeningView,
@@ -71,7 +71,7 @@ export interface RoundOpts {
 /** One colour per player. The first is the original "You" white. */
 export const PLAYER_COLORS = ['#f4f7fa', '#ff8a3d', '#3ddbd9', '#ff6ec7', '#b8e04a', '#6aa8ff', '#ffb3a7', '#c0a36e', '#9be7c4', '#d6a2ff', '#ffd27f', '#8fd3ff'];
 const START_CASH = 1_000_000;
-const AGENT_CASH = 600_000, AGENT_SH = 4000;
+const AGENT_EQUITY = 1_000_000;               // every AI trader starts with the same equity, in a different shape
 const PLAYER_MAX_POS = 50_000;
 const MAX_CONNS_PER_PLAYER = 3;
 
@@ -125,6 +125,8 @@ export class Room {
   private statsDirty = false;
   private lastStatsSave = 0;
   private scen: ScenarioRun | null = null;
+  private scenFirstHead: string | null = null;
+  private lastResolved = new Map<string, { head: string; correct: boolean }>();
   private scenKnobs = { vol: 1, liq: 1, spread: 1, crowd: 1 };
   private lastAuto = 0;
   private lastReset = 0;
@@ -181,7 +183,7 @@ export class Room {
     eng.drainEvents();
     this.news.push({ id: ++this.newsId, kind: 'sys', text: 'Opening bell', time: '09:30:00' });
     if (!sim) this.news.unshift({ id: ++this.newsId, kind: 'sys', text: `Anchored to real ${this.ticker} price $${f2(this.real?.price ?? S.last)}`, time: eng.clock() });
-    AGENTS.forEach(a => { S.accounts[a.id] = { cash: AGENT_CASH, sh: AGENT_SH, vol: 0, start: AGENT_CASH + AGENT_SH * S.last, cost: AGENT_SH * S.last }; });
+    AGENTS.forEach(a => { const sh = START_SHARES[a.id] ?? 0; S.accounts[a.id] = { cash: AGENT_EQUITY - sh * S.last, sh, vol: 0, start: AGENT_EQUITY, cost: sh * S.last }; });
     const pre = sim ? SIM_PRE : realPre(this.ticker);
     this.agents.forEach(a => {
       a.log = [{ time: '09:31', head: 'Pre-market note', act: 'HOLD', thought: pre[a.id] }];
@@ -328,7 +330,7 @@ export class Room {
 
   private teams(): IntelV['teams'] {
     let hp = 0, hs = 0, ap = 0, as = 0, n = 0;
-    for (const p of this.players.values()) { const a = this.eng.S.accounts[p.id]; if (!a) continue; hp += this.pnl(p.id); hs += a.start; n++; }
+    for (const p of this.players.values()) { const a = this.eng.S.accounts[p.id]; if (!a || (!a.vol && !a.sh)) continue; hp += this.pnl(p.id); hs += a.start; n++; }   // humans who sat out don't count
     for (const id of AGENT_IDS) { ap += this.pnl(id); as += this.eng.S.accounts[id].start; }
     const rows = this.standings();
     const top = rows[0];
@@ -471,6 +473,7 @@ export class Room {
     for (const r of done) {
       const s = this.sb.get(r.who);
       this.tell.onResolved(r, this.nameOf(r.who), s.streak, this.ticker, this.eng.clock(), S.t);
+      if (r.ai) this.lastResolved.set(r.who, { head: r.head, correct: r.correct });
       if (r.ai) this.statsDirty = true;
     }
     if (done.some(r => r.ai)) this.sendStats();
@@ -700,7 +703,7 @@ export class Room {
     const rows = this.standings().map(r => ({ room_code: this.code, name: r.name, pnl: r.pnl, is_ai: !r.human }));
     void this.deps.store.saveLeaderboard(rows);
     for (const p of this.players.values()) { p.cash = START_CASH; p.sh = 0; p.cost = 0; p.start = START_CASH; p.dirty = true; }
-    this.liveQueue = []; this.scen = null; this.scenKnobs = { vol: 1, liq: 1, spread: 1, crowd: 1 }; this.currentAct = null;
+    this.liveQueue = []; this.scen = null; this.scenFirstHead = null; this.scenKnobs = { vol: 1, liq: 1, spread: 1, crowd: 1 }; this.currentAct = null;
     this.session = 'open'; this.narrated = false; if (this.speed === 0) this.speed = 1;
     this.tell.reset();
     this.build(this.real?.price ?? undefined);
@@ -732,6 +735,7 @@ export class Room {
     if (!def) return;
     if (this.scen) return this.toast(c, `A scenario is already running (${this.scen.def.name}).`, 'news');
     this.scen = { def, i: 0, nextAt: this.eng.S.t, block: null, reverts: [] };
+    this.scenFirstHead = null;
     this.tell.add('scenario', `Scenario started: ${def.name}.`, 1, this.eng.clock(), this.eng.S.t);
     if (this.speed === 0) this.speed = 1;
     this.broadcast({ k: 'room', room: this.info() });
@@ -761,6 +765,7 @@ export class Room {
     } else if ('news' in step) {
       sc.block = 'round';
       const text = fillScenario(step.news, this.co);
+      if (!this.scenFirstHead) this.scenFirstHead = text;
       void this.runRound({ text, byName: `Scenario: ${sc.def.name}`, origin: 'SCENARIO', debate: step.debate, debateAct: step.debateAct })
         .catch(e => console.error(JSON.stringify({ ev: 'round_crash', room: this.code, error: String(e?.message ?? e) })))
         .finally(() => { if (this.scen === sc) { sc.block = null; sc.nextAt = this.eng.S.t + after(next); } });
@@ -788,6 +793,15 @@ export class Room {
       for (const p of this.players.values()) this.toast(p, step.prompt);
     } else if ('close' in step) {
       void this.closeSession(null);
+    } else if ('scoreboard' in step) {
+      const head = this.scenFirstHead;
+      const rows = AGENTS.map(a => ({ a, r: this.lastResolved.get(a.id) })).filter(x => x.r && (!head || x.r.head === head));
+      const right = rows.filter(x => x.r!.correct).map(x => x.a.name), wrong = rows.filter(x => !x.r!.correct).map(x => x.a.name);
+      const sub = rows.length ? `Right: ${right.join(', ') || 'nobody'}. Wrong: ${wrong.join(', ') || 'nobody'}.` : (step.sub ?? 'Calls are being scored.');
+      this.currentAct = step.scoreboard;
+      this.broadcast({ k: 'act', title: step.scoreboard, sub });
+      this.tell.add('act', `${step.scoreboard}: ${sub}`, 3, clk, S.t);
+      this.broadcast({ k: 'room', room: this.info() });
     }
   }
 
@@ -831,12 +845,12 @@ export class Room {
     const os = this.sb.get(oracle);
     const headlines = this.news.filter(n => n.kind === 'news' && n.impact != null);
     const big = headlines.sort((a, b) => Math.abs(b.impact!) - Math.abs(a.impact!))[0];
-    const moments = this.tell.stories.filter(s => s.weight >= 2).slice(0, 10).reverse();
+    const moments = this.tell.stories.filter(s => s.weight >= 2 && s.kind !== 'leader' && s.kind !== 'teams').slice(0, 10).reverse();
     const ach: RecapV['achievements'] = [];
     for (const [pid, set] of this.tell.earned) for (const a of set) ach.push({ name: this.nameOf(pid), title: ACHIEVEMENTS[a].title });
     return {
       ticker: this.ticker, open: S.open, close: S.last, hi: S.hi, lo: S.lo, volume: S.volume, halts: S.halts.length,
-      standings: st, humans: { pnl: tm.human.pnl, ret: tm.human.ret }, ai: { pnl: tm.ai.pnl, ret: tm.ai.ret },
+      standings: st, humans: { pnl: tm.human.pnl, ret: tm.human.ret, traded: tm.human.n }, ai: { pnl: tm.ai.pnl, ret: tm.ai.ret },
       mostAccurate: os.calls ? { name: this.nameOf(oracle), correct: os.correct, calls: os.calls } : null,
       biggestHeadline: big ? { text: big.text, impact: big.impact!, moved: big.moved ?? null } : null,
       mostSplit: this.tell.stories.find(s => s.kind === 'split')?.text ?? null,

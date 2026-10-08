@@ -1,75 +1,138 @@
 {
-  "ranAt": "2026-10-08T11:12:20.583Z",
+  "ranAt": "2026-10-08T12:32:23.427Z",
   "minutes": 10,
   "warmupMinutes": 2,
-  "heapBaselineMB": 20.3,
-  "heapEndMB": 21.3,
+  "heapBaselineMB": 22.3,
+  "heapEndMB": 23.3,
   "heapGrowthMB": 1,
-  "heapSlopeMBPerMin": 0.12,
-  "eventLoopP99ms": 10.8,
-  "eventLoopMaxMs": 66,
+  "heapSlopeMBPerMin": 0.14,
+  "eventLoopP99ms": 10.9,
+  "eventLoopMaxMs": 156.1,
   "rounds": [
     {
-      "code": "CRZUU",
+      "code": "KARRA",
       "mode": "sim",
       "rounds": 19,
       "aiRounds": 19,
       "offlineRounds": 0,
-      "live": 0
+      "live": 0,
+      "debates": 0,
+      "aiMs": 36780
     },
     {
-      "code": "MMYUA",
+      "code": "PETCM",
       "mode": "real",
-      "rounds": 19,
-      "aiRounds": 19,
+      "rounds": 16,
+      "aiRounds": 16,
       "offlineRounds": 0,
-      "live": 8
+      "live": 5,
+      "debates": 5,
+      "aiMs": 38266
+    },
+    {
+      "code": "LYPTD",
+      "mode": "sim",
+      "rounds": 9,
+      "aiRounds": 9,
+      "offlineRounds": 0,
+      "live": 0,
+      "debates": 5,
+      "aiMs": 25014
     }
   ],
   "clients": [
     {
       "name": "Brae",
       "deltasPerSec": 6.2,
-      "avgBytes": 1300,
-      "p99GapMs": 251,
-      "maxGapMs": 279
+      "avgBytes": 1382,
+      "p99GapMs": 252,
+      "maxGapMs": 284
     },
     {
       "name": "Sam",
       "deltasPerSec": 6.2,
-      "avgBytes": 1300,
-      "p99GapMs": 251,
-      "maxGapMs": 279
+      "avgBytes": 1382,
+      "p99GapMs": 252,
+      "maxGapMs": 284
     },
     {
       "name": "Alex",
       "deltasPerSec": 6.2,
-      "avgBytes": 1300,
-      "p99GapMs": 251,
-      "maxGapMs": 279
+      "avgBytes": 1382,
+      "p99GapMs": 252,
+      "maxGapMs": 284
     },
     {
       "name": "Brae",
-      "deltasPerSec": 5.52,
-      "avgBytes": 1286,
+      "deltasPerSec": 5.49,
+      "avgBytes": 1444,
       "p99GapMs": 251,
-      "maxGapMs": 277
+      "maxGapMs": 281
     },
     {
       "name": "Kim",
-      "deltasPerSec": 5.52,
-      "avgBytes": 1286,
+      "deltasPerSec": 5.49,
+      "avgBytes": 1444,
+      "p99GapMs": 252,
+      "maxGapMs": 281
+    },
+    {
+      "name": "Host",
+      "deltasPerSec": 5.38,
+      "avgBytes": 1392,
       "p99GapMs": 251,
-      "maxGapMs": 277
+      "maxGapMs": 384
+    },
+    {
+      "name": "Lee",
+      "deltasPerSec": 5.38,
+      "avgBytes": 1392,
+      "p99GapMs": 252,
+      "maxGapMs": 384
     }
   ],
   "usage": {
     "day": "2026-10-08",
-    "rounds": 38,
-    "roundCap": 200,
-    "small": 9,
+    "rounds": 54,
+    "roundCap": 5000,
+    "small": 13,
     "smallCap": 400,
-    "tokensIn": 74549,
-    "tokensOut": 16246
+    "tokensIn": 145615,
+    "tokensOut": 27573,
+    "costUSD": 0.5363,
+    "avoided": 0,
+    "lastCallUSD": 0.01072,
+    "byKind": {
+      "debate_open": {
+        "calls": 10,
+        "costUSD": 0.0822,
+        "avgMs": 1512
+      },
+      "debate_final": {
+        "calls": 10,
+        "costUSD": 0.1001,
+        "avgMs": 1940
+      },
+      "round": {
+        "calls": 23,
+        "costUSD": 0.2408,
+        "avgMs": 1939
+      },
+      "check": {
+        "calls": 11,
+        "costUSD": 0.1116,
+        "avgMs": 1904
+      },
+      "ask": {
+        "calls": 9,
+        "costUSD": 0.001,
+        "avgMs": 534
+      },
+      "narrator": {
+        "calls": 4,
+        "costUSD": 0.0006,
+        "avgMs": 747
+      }
+    }
   }
 }

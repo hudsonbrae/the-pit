@@ -253,13 +253,13 @@ img{max-width:100%}
 .vs b{font:800 20px/1 var(--display);letter-spacing:.04em;display:inline}
 
 /* chart overlays */
-.actbanner{position:absolute;left:0;right:0;top:0;display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 12px;background:linear-gradient(var(--ground),rgba(12,18,25,.0));pointer-events:none;animation:act 4.5s ease-out forwards;z-index:2}
+.actbanner{position:absolute;left:0;right:0;top:0;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 12px 14px;background:rgba(12,18,25,.94);border-bottom:1px solid var(--amber);pointer-events:none;animation:act 4.5s ease-out forwards;z-index:3}
 .actbanner b{font:900 34px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--amber);text-align:center}
 .actbanner span{font:500 13px var(--mono);color:var(--fg);text-align:center}
 @keyframes act{0%{opacity:0;transform:translateY(-8px)}8%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
-.ribbon{position:absolute;left:8px;bottom:8px;max-width:calc(100% - 80px);display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(12,18,25,.88);border:1px solid var(--amber);border-radius:3px;font:600 11.5px var(--mono);color:var(--amber);z-index:2}
+.ribbon{display:flex;align-items:center;gap:8px;padding:7px 14px;background:var(--panel2);border-bottom:1px solid var(--amber);font:600 11.5px/1.35 var(--mono);color:var(--amber)}
 .ribbon i{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);animation:blink .7s steps(2) infinite;flex:none}
-.ribbon span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ribbon span{min-width:0}
 
 /* newsroom tags */
 .org{display:inline-block;margin-right:6px;padding:1px 5px;border-radius:2px;font:700 10px/1.4 var(--mono);letter-spacing:.08em;vertical-align:2px}
@@ -391,8 +391,10 @@ img{max-width:100%}
   .bar{gap:8px 12px;padding-bottom:8px}
   .brand h1{font-size:28px}
   .brand p{display:none}
-  .quote{gap:8px}
-  .quote .px{font-size:38px}
+  .quote{gap:8px;flex-wrap:nowrap}
+  .quote .px{font-size:38px;min-width:4.2ch}
+  .quote .chg{font-size:13px;white-space:nowrap}
+  .stats,.pills,.intel{-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
   .stats{flex-wrap:nowrap;overflow-x:auto;gap:14px;width:100%;scrollbar-width:none}
   .stats::-webkit-scrollbar{display:none}
   .pills{flex-wrap:nowrap;overflow-x:auto;width:100%;scrollbar-width:none}
@@ -438,7 +440,12 @@ img{max-width:100%}
 }
 
 /* ---- stage mode: the big screen while phones are the controllers ---- */
-body.stage .wrap{max-width:none;padding-inline:24px}
+body.stage .wrap{max-width:none;padding-inline:24px;zoom:1.12}
+body.stage .ic b{font-size:28px}
+body.stage .ic small{font-size:12.5px;white-space:normal}
+body.stage .actbanner b{font-size:56px}
+body.stage .actbanner span{font-size:18px}
+body.stage .ribbon{font-size:14px}
 body.stage .p-desk .newsform,body.stage .p-desk .chips,body.stage .p-desk .tools,body.stage .p-you,body.stage .p-book,body.stage .p-tape,body.stage .stats,body.stage #soundBtn,body.stage .dock{display:none!important}
 body.stage .grid{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);grid-template-areas:"chart floor" "story floor" "desk floor"}
 body.stage .chartbox,body.stage .p-chart .chartbox{height:44vh;flex:none}
@@ -450,3 +457,5 @@ body.stage .story li{font-size:16px}
 body.stage .stagejoin{display:block;font:500 14px var(--mono);color:var(--muted);margin-left:auto}
 body.stage .stagejoin b{color:var(--amber);font-size:20px}
 body.watching .p-you .seg,body.watching .p-you .tradebtns,body.watching .p-desk .newsform,body.watching .p-desk .chips,body.watching .p-desk .tools,body.watching .dock{display:none!important}
+
+.calib .few{color:var(--faint)}

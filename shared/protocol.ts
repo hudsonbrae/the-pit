@@ -135,7 +135,7 @@ export interface ChatterV { id: string; to: string; line: string; kind?: 'chatte
 export interface RecapV {
   ticker: string; open: number; close: number; hi: number; lo: number; volume: number; halts: number;
   standings: { id: string; name: string; pnl: number; human: boolean }[];
-  humans: { pnl: number; ret: number }; ai: { pnl: number; ret: number };
+  humans: { pnl: number; ret: number; traded: number }; ai: { pnl: number; ret: number };
   mostAccurate: { name: string; correct: number; calls: number } | null;
   biggestHeadline: { text: string; impact: number; moved: number | null } | null;
   mostSplit: string | null;

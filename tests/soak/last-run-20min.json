@@ -1,0 +1,138 @@
+{
+  "ranAt": "2026-10-08T12:22:22.175Z",
+  "minutes": 20,
+  "warmupMinutes": 2,
+  "heapBaselineMB": 22.3,
+  "heapEndMB": 24.1,
+  "heapGrowthMB": 1.8,
+  "heapSlopeMBPerMin": 0.1,
+  "eventLoopP99ms": 10.9,
+  "eventLoopMaxMs": 64.2,
+  "rounds": [
+    {
+      "code": "FSTNV",
+      "mode": "sim",
+      "rounds": 39,
+      "aiRounds": 39,
+      "offlineRounds": 0,
+      "live": 0,
+      "debates": 0,
+      "aiMs": 75509
+    },
+    {
+      "code": "ZRHFD",
+      "mode": "real",
+      "rounds": 30,
+      "aiRounds": 30,
+      "offlineRounds": 0,
+      "live": 7,
+      "debates": 7,
+      "aiMs": 68088
+    },
+    {
+      "code": "DQDBM",
+      "mode": "sim",
+      "rounds": 18,
+      "aiRounds": 18,
+      "offlineRounds": 0,
+      "live": 0,
+      "debates": 9,
+      "aiMs": 48040
+    }
+  ],
+  "clients": [
+    {
+      "name": "Brae",
+      "deltasPerSec": 6.2,
+      "avgBytes": 1361,
+      "p99GapMs": 251,
+      "maxGapMs": 273
+    },
+    {
+      "name": "Sam",
+      "deltasPerSec": 6.2,
+      "avgBytes": 1361,
+      "p99GapMs": 251,
+      "maxGapMs": 273
+    },
+    {
+      "name": "Alex",
+      "deltasPerSec": 6.2,
+      "avgBytes": 1361,
+      "p99GapMs": 251,
+      "maxGapMs": 273
+    },
+    {
+      "name": "Brae",
+      "deltasPerSec": 5.47,
+      "avgBytes": 1435,
+      "p99GapMs": 251,
+      "maxGapMs": 272
+    },
+    {
+      "name": "Kim",
+      "deltasPerSec": 5.47,
+      "avgBytes": 1435,
+      "p99GapMs": 251,
+      "maxGapMs": 272
+    },
+    {
+      "name": "Host",
+      "deltasPerSec": 5.38,
+      "avgBytes": 1388,
+      "p99GapMs": 251,
+      "maxGapMs": 278
+    },
+    {
+      "name": "Lee",
+      "deltasPerSec": 5.38,
+      "avgBytes": 1388,
+      "p99GapMs": 251,
+      "maxGapMs": 278
+    }
+  ],
+  "usage": {
+    "day": "2026-10-08",
+    "rounds": 103,
+    "roundCap": 5000,
+    "small": 27,
+    "smallCap": 400,
+    "tokensIn": 303799,
+    "tokensOut": 53078,
+    "costUSD": 1.0729,
+    "avoided": 0,
+    "lastCallUSD": 0.01061,
+    "byKind": {
+      "debate_open": {
+        "calls": 16,
+        "costUSD": 0.1338,
+        "avgMs": 1495
+      },
+      "debate_final": {
+        "calls": 16,
+        "costUSD": 0.1637,
+        "avgMs": 1949
+      },
+      "round": {
+        "calls": 48,
+        "costUSD": 0.5274,
+        "avgMs": 1934
+      },
+      "check": {
+        "calls": 23,
+        "costUSD": 0.2445,
+        "avgMs": 1899
+      },
+      "ask": {
+        "calls": 19,
+        "costUSD": 0.0023,
+        "avgMs": 533
+      },
+      "narrator": {
+        "calls": 8,
+        "costUSD": 0.0011,
+        "avgMs": 730
+      }
+    }
+  }
+}

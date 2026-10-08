@@ -37,22 +37,25 @@ export const realPresets = (short: string) => [
   `${short} CEO posts a photo of his dog wearing a company hard hat`,
 ];
 
+/** Each trader starts the day with their own book (same total equity, different exposure). */
+export const START_SHARES: Record<string, number> = { marlowe: 6000, kestrel: 0, juno: 3000, ash: -2000, vega: 2000, pip: 9000 };
+
 export const SIM_PRE: Record<string, string> = {
-  marlowe: 'Guidance raise is real cash flow. I own 4,000 and I am in no hurry.',
-  kestrel: 'Morning trend up, Ferrovolt dip got bought. Flat bias until the tape speaks.',
+  marlowe: 'Guidance raise is real cash flow. I own 6,000 and I am in no hurry.',
+  kestrel: 'Morning trend up, Ferrovolt dip got bought. Flat, no position, until the tape speaks.',
   juno: 'Utilities are still under-ordering storage. Ferrovolt is a 2028 problem, not today’s.',
-  ash: 'Everyone loves this name after the guidance bump. That usually ends badly.',
+  ash: 'Everyone loves this name after the guidance bump. I am short 2,000. That usually ends badly.',
   vega: 'Realised vol is low. Holding base size, room to add on a clean signal.',
-  pip: 'HLCN to the moon, holding 4k shares and not selling a single one.',
+  pip: 'HLCN to the moon, holding 9k shares and not selling a single one.',
 };
 
 export const realPre = (ticker: string): Record<string, string> => ({
-  marlowe: 'Cash flow and balance sheet first. I own 4,000 and I am in no hurry.',
-  kestrel: 'Tape is quiet. Flat bias until volume tells me which way.',
+  marlowe: 'Cash flow and balance sheet first. I own 6,000 and I am in no hurry.',
+  kestrel: 'Tape is quiet. Flat, no position, until volume tells me which way.',
   juno: 'Watching rates, suppliers and competitors for the second-order read.',
-  ash: 'Whatever the crowd agrees on today, I will probably be on the other side.',
+  ash: 'Whatever the crowd agrees on today, I will be on the other side. Short 2,000 to start.',
   vega: 'Realised vol is normal. Holding base size, room to add on a clean signal.',
-  pip: `${ticker} only goes up, holding 4k shares and not selling a single one.`,
+  pip: `${ticker} only goes up, holding 9k shares and not selling a single one.`,
 });
 
 /** Builds the company context for a real ticker from a provider profile. */
