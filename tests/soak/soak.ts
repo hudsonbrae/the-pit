@@ -27,7 +27,7 @@ market.forceOpen = true;
 const app = createApp({
   llm: new FakeLLM({ firstTokenMs: 400, chunkMs: 10 }),
   market,
-  cfg: { publicDir: 'dist', quotePollSec: 5, newsPollSec: 20, aiRoundsPerMinPerRoom: 6, roundPaceMs: 700, chatterPaceMs: 900 },
+  cfg: { publicDir: 'dist', quotePollSec: 5, newsPollSec: 20, aiRoundsPerMinPerRoom: 8, aiDailyRoundCap: 5000, aiRoomDailyRoundCap: 5000, roomCreatesPerIpPerMin: 100, newsCooldownSec: 0, roundPaceMs: 700, chatterPaceMs: 900 },
 });
 const port = await app.listen(0);
 const base = `http://localhost:${port}`;
@@ -60,10 +60,14 @@ function connect(code: string, name: string, token: string): Promise<Client> {
 let measuring = false;
 const sim = await mkRoom('sim');
 const real = await mkRoom('real', 'NVDA');
+const demoR = await fetch(`${base}/api/rooms`, { method: 'POST', body: JSON.stringify({ mode: 'sim', scenario: 'demo', token: 'host-demo-0000' }) });
+const demo = (await demoR.json()).code as string;
 const clients = [
   await connect(sim, 'Brae', 'host-sim-0000'), await connect(sim, 'Sam', 'tok-sam-00001'), await connect(sim, 'Alex', 'tok-alex-0001'),
   await connect(real, 'Brae', 'host-real-0000'), await connect(real, 'Kim', 'tok-kim-00001'),
+  await connect(demo, 'Host', 'host-demo-0000'), await connect(demo, 'Lee', 'tok-lee-00001'),
 ];
+app.rooms.rooms.get(demo)!.lab.debate = 'always';
 console.log(`soak: ${MIN} min, rooms ${sim} (sim) and ${real} (real NVDA), ${clients.length} clients, port ${port}`);
 
 const heads = ['Halcyon wins $4B Pentagon contract', 'CFO resigns effective immediately', 'Short seller alleges fraud', 'Record quarterly profit', 'Regulator opens probe'];
@@ -73,6 +77,11 @@ const timers = [
   setInterval(() => { clients[hi % 3].ws.send(JSON.stringify({ k: 'news', text: heads[hi % heads.length] + ' #' + hi })); hi++; }, 30_000),
   setInterval(() => clients[4].ws.send(JSON.stringify({ k: 'check' })), 47_000),
   setInterval(() => clients[1].ws.send(JSON.stringify({ k: 'ask', id: 'pip', q: 'Why?' })), 61_000),
+  // the demo room replays its nine acts back to back, with debates on every headline
+  setInterval(() => {
+    const r = app.rooms.rooms.get(demo)!;
+    if (r.session === 'closed') { clients[5].ws.send(JSON.stringify({ k: 'host', action: 'reset' })); setTimeout(() => clients[5].ws.send(JSON.stringify({ k: 'host', action: 'scenario', id: 'demo' })), 500); }
+  }, 10_000),
 ];
 
 const loop = monitorEventLoopDelay({ resolution: 10 });
@@ -104,7 +113,7 @@ const report = {
   rounds: [...st.values()].map(r => ({ code: r.code, mode: r.mode, ...r.stats })), clients: perClient, usage: app.deps.guard.stats(),
 };
 console.log(JSON.stringify(report, null, 2));
-writeFileSync('tests/soak/last-run.json', JSON.stringify({ ranAt: new Date().toISOString(), ...report }, null, 2) + '\n');
+writeFileSync(process.env.SOAK_OUT || 'tests/soak/last-run.json', JSON.stringify({ ranAt: new Date().toISOString(), ...report }, null, 2) + '\n');
 
 const fails: string[] = [];
 if (growth > 20) fails.push(`heap grew ${growth.toFixed(1)} MB`);
@@ -115,6 +124,7 @@ for (const c of perClient) {
 }
 if (report.eventLoopP99ms > 50) fails.push(`event loop p99 ${report.eventLoopP99ms} ms`);
 if (![...st.values()].every(r => r.stats.rounds > 0)) fails.push('a room ran no AI rounds');
+if (!st.get(demo)?.stats.debates) fails.push('the demo room ran no debates');
 clients.forEach(c => c.ws.close());
 await app.close();
 if (fails.length) { console.error('SOAK FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
