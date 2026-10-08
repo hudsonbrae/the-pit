@@ -7,8 +7,8 @@ export class AnthropicLLM implements LLM {
   readonly real = true;
   private client: Anthropic;
 
-  constructor(apiKey: string) {
-    this.client = new Anthropic({ apiKey, maxRetries: 1, timeout: 90_000 });
+  constructor(apiKey: string, opts: { baseURL?: string; maxRetries?: number } = {}) {
+    this.client = new Anthropic({ apiKey, maxRetries: opts.maxRetries ?? 1, timeout: 90_000, ...(opts.baseURL ? { baseURL: opts.baseURL } : {}) });
   }
 
   async stream(req: LLMRequest, onText: (delta: string) => void): Promise<LLMUsage> {

@@ -16,6 +16,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}/api/health`,
     timeout: 120_000,
     reuseExistingServer: false,
-    env: { PORT: String(PORT), AI_PROVIDER: 'mock', MARKET_PROVIDER: 'mock', ANTHROPIC_API_KEY: '', FINNHUB_API_KEY: '', SUPABASE_URL: '', SUPABASE_SERVICE_ROLE_KEY: '' },
+    env: { PORT: String(PORT), AI_PROVIDER: 'mock', MARKET_PROVIDER: 'mock', ANTHROPIC_API_KEY: '', FINNHUB_API_KEY: '', SUPABASE_URL: '', SUPABASE_SECRET_KEY: '', SUPABASE_SERVICE_ROLE_KEY: '' },
   },
 });

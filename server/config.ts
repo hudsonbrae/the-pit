@@ -54,7 +54,7 @@ export function loadConfig(over: Partial<Config> = {}): Config {
     quotePollSec: num('QUOTE_POLL_SEC', 15),
     newsPollSec: num('NEWS_POLL_SEC', 180),
     supabaseUrl: str('SUPABASE_URL'),
-    supabaseServiceKey: str('SUPABASE_SERVICE_ROLE_KEY'),
+    supabaseServiceKey: str('SUPABASE_SECRET_KEY') || str('SUPABASE_SERVICE_ROLE_KEY'),
     roundPaceMs: num('ROUND_PACE_MS', 700),
     chatterPaceMs: num('CHATTER_PACE_MS', 900),
     maxRooms: num('MAX_ROOMS', 50),

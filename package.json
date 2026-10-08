@@ -5,9 +5,10 @@
   "description": "The Pit: a simulated stock exchange where six AI traders and your friends trade the same order book.",
   "type": "module",
   "engines": {
-    "node": ">=20.11"
+    "node": ">=20.12"
   },
   "scripts": {
+    "local": "npm install && npm run build && npm start",
     "dev": "concurrently -k -n server,web -c yellow,cyan \"tsx watch server/index.ts\" \"vite\"",
     "build": "vite build",
     "start": "tsx server/index.ts",
