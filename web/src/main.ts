@@ -211,7 +211,7 @@ function applyRoom(r: RoomInfo) {
     $('#realPx').textContent = r.real.price != null ? f2(r.real.price) : '-';
     const closed = r.real.marketOpen === false;
     $('#realSub').textContent = closed ? 'US market closed · last real price' : 'live quote';
-    $('#chartSub').textContent = `5-second candles · simulated exchange anchored to real price${closed ? ' · US market closed' : ''}`;
+    if (!G.wire.some(n => n.kind === 'news' && n.no)) $('#chartSub').textContent = `5-second candles · simulated exchange anchored to real price${closed ? ' · US market closed' : ''}`;
     $('#deskSub').textContent = `Real ${r.ticker} headlines arrive on their own (LIVE) and the floor debates them. Yours are PLAYER.`;
   }
   if (r.scenario?.act && r.scenario.act !== lastAct) lastAct = r.scenario.act;
@@ -441,6 +441,9 @@ function renderWire() {
     ? `<li class="sys"><span class="tm">${esc(n.time.slice(0, 5))}</span><span class="hl">${esc(n.text)}</span><span></span></li>`
     : `<li><span class="tm">${esc(n.time.slice(0, 5))}</span><span class="hl">${n.no ? `<span class="no">${n.no}</span>` : ''}${origin(n)}${esc(n.text)}</span>${n.kind === 'check' ? '<span class="imp flat">floor check</span>' : impChip(n)}${n.read || meta(n) ? `<span class="rd">${meta(n)}${esc(n.read || '')}</span>` : ''}</li>`).join('');
   const top = G.wire.find(n => n.kind === 'news');
+  // the headline that's moving the market, always visible above the chart
+  const sub = $('#chartSub');
+  if (top && top.no) { sub.className = 'head'; sub.innerHTML = `<b>#${top.no}</b> ${esc(top.text)}${top.impact != null ? ` <b>${top.impact > 0 ? '+' : ''}${(+top.impact).toFixed(1)}%</b>` : ''}`; sub.title = top.text; }
   if (top && top.id !== lastWireTop) { if (lastWireTop && top.impact == null) sfx.bell(); lastWireTop = top.id; }
 }
 $('#chips').addEventListener('click', e => { const b = (e.target as HTMLElement).closest('.chip'); if (b && !G.round.busy) send({ k: 'news', text: b.textContent!, deep: deep(), debate: debateOn() }); });
@@ -675,7 +678,7 @@ function showRecap(r: RecapV) {
   const humans = r.standings.some(s => s.human);
   const sat = r.humans.traded === 0;
   $('#recapBody').innerHTML = `<div class="rgrid">
-    ${r.records.map(x => card('New record · ' + x.title, esc(x.value), esc(x.holder), 'rec')).join('')}
+    ${r.records.length ? card(r.records.length > 1 ? `${r.records.length} new records` : 'New record', '', r.records.map(x => `<b class="up">${esc(x.value)}</b> ${esc(x.title.toLowerCase())} · ${esc(x.holder)}`).join('<br>'), 'rec') : ''}
     ${card(r.ticker, `${f2(r.close)} <small class="${sgn(chg)}">${chg >= 0 ? '+' : ''}${(chg * 100).toFixed(2)}%</small>`, `open ${f2(r.open)} · high ${f2(r.hi)} · low ${f2(r.lo)} · ${fi(r.volume)} shares · ${r.halts} halt${r.halts === 1 ? '' : 's'}`)}
     ${card('Standings', '', top)}
     ${humans ? card('Humans vs AI', sat ? 'HUMANS SAT OUT' : r.humans.ret >= r.ai.ret ? 'HUMANS WIN' : 'AI WINS', sat ? `nobody traded · AI floor ${r.ai.ret >= 0 ? '+' : ''}${r.ai.ret.toFixed(2)}%` : `humans ${r.humans.ret >= 0 ? '+' : ''}${r.humans.ret.toFixed(2)}% · AI floor ${r.ai.ret >= 0 ? '+' : ''}${r.ai.ret.toFixed(2)}%`) : ''}
@@ -686,7 +689,7 @@ function showRecap(r: RecapV) {
     ${card('Regimes', '', esc(r.regimes.join(' → ')))}
     ${r.bestCall ? card('Best call', esc(r.bestCall.name), `${r.bestCall.conviction}% sure of ${esc(r.bestCall.call.toUpperCase())} on “${esc(r.bestCall.head)}”: ${r.bestCall.ret > 0 ? '+' : ''}${r.bestCall.ret.toFixed(1)}% in 60s`) : ''}
     ${r.worstCall ? card('Worst call', esc(r.worstCall.name), `${r.worstCall.conviction}% sure of ${esc(r.worstCall.call.toUpperCase())} on “${esc(r.worstCall.head)}”: it went ${r.worstCall.ret > 0 ? '+' : ''}${r.worstCall.ret.toFixed(1)}%`) : ''}
-    ${r.fastest ? card('Fastest reaction', esc(r.fastest.name), `traded ${r.fastest.secs}s after a headline`) : ''}
+    ${r.fastest && !r.records.some(x => x.key === 'fastest') ? card('Fastest reaction', esc(r.fastest.name), `traded ${r.fastest.secs}s after a headline`) : ''}
     ${r.science ? card('AI science', r.science.debate.open != null && r.science.debate.final != null && r.science.debate.n >= 6 ? `${r.science.debate.open}% → ${r.science.debate.final}%` : 'DEBATE?', esc(r.science.verdict)) : ''}
     ${r.achievements.length ? card('Achievements', '', r.achievements.map(a => `${esc(a.name)}: ${esc(a.title)}`).join('<br>')) : ''}
   </div>
@@ -771,7 +774,7 @@ function onStream(m: ServerMsg & { k: 'stream' }) {
 let open: AgentV | null = null;
 function paintDrawerLive() {
   if (!open) return; const ac = G.acc[open.id], p = pnl(open.id); if (!ac) return;
-  $('#dPosD').textContent = fi(ac[1]) + ' sh'; $('#dCash').textContent = '$' + fi(ac[0]);
+  $('#dPosD').textContent = fi(ac[1]) + ' sh'; $('#dCash').textContent = (ac[0] < 0 ? '−$' : '$') + fi(Math.abs(ac[0]));
   $('#dPnl').textContent = money(p); $('#dPnl').className = sgn(p);
 }
 function paintDrawer() {
@@ -845,7 +848,7 @@ function renderScience() {
 function paintScience() {
   const x = G.science; if (!x) return;
   const bar = (label: string, v: number | null, n: number, cls = '') => `<div class="xbar ${cls}"><span>${label}</span><span class="tr">${v != null ? `<i style="width:${v}%"></i>` : ''}<u></u></span><b>${v != null ? v + '%' : '-'}<small class="voice"> /${n}</small></b></div>`;
-  const tr = (a: AgentV) => { const t = G.stats[a.id]?.tend; const c = (v?: [number, number]) => !v || v[1] < 3 ? `<span class="few">${v?.[1] ?? 0}</span>` : `${Math.round(v[0] / v[1] * 100)}%<small class="voice">/${v[1]}</small>`; return `<tr><td style="color:var(--a-${a.id})">${esc(a.name)}</td><td>${c(t?.fol)}</td><td>${c(t?.fade)}</td><td>${c(t?.stress)}</td></tr>`; };
+  const tr = (a: AgentV) => { const t = G.stats[a.id]?.tend; const c = (v?: [number, number]) => !v || v[1] < 3 ? `<span class="few">n=${v?.[1] ?? 0}</span>` : `${Math.round(v[0] / v[1] * 100)}%<small class="voice">/${v[1]}</small>`; return `<tr><td style="color:var(--a-${a.id})">${esc(a.name)}</td><td>${c(t?.fol)}</td><td>${c(t?.fade)}</td><td>${c(t?.stress)}</td></tr>`; };
   const herd = (v: number | null) => v == null ? '-' : `${Math.round(v * 100)}%`;
   $('#sciBody').innerHTML = `
     <h3 class="sub">Does debate make the floor smarter?</h3>
@@ -884,7 +887,7 @@ function paintHost() {
   $('#seedV').textContent = String(r.seed);
   $<HTMLButtonElement>('#closeBtn').disabled = r.session === 'closed';
 }
-$('#hostBtn').onclick = () => { paintHost(); $('#hostPanel').hidden = false; $('#scrim').hidden = false; $('#dock').hidden = true; };
+$('#hostBtn').onclick = () => { paintHost(); $('#hostPanel .db').scrollTop = 0; $('#hostPanel').hidden = false; $('#scrim').hidden = false; $('#dock').hidden = true; };
 $('#chaosList').addEventListener('click', e => { const b = (e.target as HTMLElement).closest('button') as HTMLElement | null; if (b?.dataset.id) { send({ k: 'host', action: 'chaos', id: b.dataset.id }); closeDrawers(); } });
 $('#scenList').addEventListener('click', e => { const b = (e.target as HTMLElement).closest('button') as HTMLElement | null; if (b?.dataset.id) { send({ k: 'host', action: 'scenario', id: b.dataset.id }); closeDrawers(); } });
 const lab = (l: Record<string, unknown>) => send({ k: 'host', action: 'lab', lab: l });

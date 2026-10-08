@@ -46,7 +46,7 @@ Open the app on a laptop and tap **Run the demo**, then **Stage**. Send the room
 
 ```bash
 npm run typecheck
-npm test            # 107 unit, chaos and security tests (~10 s)
+npm test            # 115 unit, chaos and security tests (~10 s)
 npm run test:e2e    # 9 Playwright tests: two browsers, phone dock, the full demo, spectators, chaos → recap → Legends (~2 min)
 npm run soak        # 10-minute soak: memory, delta smoothness, event-loop delay
 ```

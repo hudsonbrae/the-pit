@@ -1,137 +1,137 @@
 {
-  "ranAt": "2026-10-08T12:32:23.427Z",
+  "ranAt": "2026-10-08T15:02:46.232Z",
   "minutes": 10,
   "warmupMinutes": 2,
-  "heapBaselineMB": 22.3,
-  "heapEndMB": 23.3,
-  "heapGrowthMB": 1,
-  "heapSlopeMBPerMin": 0.14,
-  "eventLoopP99ms": 10.9,
-  "eventLoopMaxMs": 156.1,
+  "heapBaselineMB": 22.8,
+  "heapEndMB": 24,
+  "heapGrowthMB": 1.1,
+  "heapSlopeMBPerMin": 0.15,
+  "eventLoopP99ms": 11,
+  "eventLoopMaxMs": 93.7,
   "rounds": [
     {
-      "code": "KARRA",
+      "code": "KKWCW",
       "mode": "sim",
-      "rounds": 19,
+      "rounds": 20,
       "aiRounds": 19,
       "offlineRounds": 0,
       "live": 0,
       "debates": 0,
-      "aiMs": 36780
+      "aiMs": 36986
     },
     {
-      "code": "PETCM",
+      "code": "CLAQG",
       "mode": "real",
-      "rounds": 16,
-      "aiRounds": 16,
+      "rounds": 17,
+      "aiRounds": 17,
       "offlineRounds": 0,
       "live": 5,
       "debates": 5,
-      "aiMs": 38266
+      "aiMs": 40375
     },
     {
-      "code": "LYPTD",
+      "code": "QLCEQ",
       "mode": "sim",
       "rounds": 9,
       "aiRounds": 9,
       "offlineRounds": 0,
       "live": 0,
       "debates": 5,
-      "aiMs": 25014
+      "aiMs": 24677
     }
   ],
   "clients": [
     {
       "name": "Brae",
       "deltasPerSec": 6.2,
-      "avgBytes": 1382,
-      "p99GapMs": 252,
-      "maxGapMs": 284
+      "avgBytes": 1393,
+      "p99GapMs": 251,
+      "maxGapMs": 282
     },
     {
       "name": "Sam",
       "deltasPerSec": 6.2,
-      "avgBytes": 1382,
-      "p99GapMs": 252,
-      "maxGapMs": 284
+      "avgBytes": 1393,
+      "p99GapMs": 251,
+      "maxGapMs": 282
     },
     {
       "name": "Alex",
       "deltasPerSec": 6.2,
-      "avgBytes": 1382,
-      "p99GapMs": 252,
-      "maxGapMs": 284
+      "avgBytes": 1393,
+      "p99GapMs": 251,
+      "maxGapMs": 282
     },
     {
       "name": "Brae",
       "deltasPerSec": 5.49,
-      "avgBytes": 1444,
-      "p99GapMs": 251,
-      "maxGapMs": 281
+      "avgBytes": 1469,
+      "p99GapMs": 252,
+      "maxGapMs": 286
     },
     {
       "name": "Kim",
       "deltasPerSec": 5.49,
-      "avgBytes": 1444,
+      "avgBytes": 1469,
+      "p99GapMs": 252,
+      "maxGapMs": 286
+    },
+    {
+      "name": "Host",
+      "deltasPerSec": 5.37,
+      "avgBytes": 1413,
       "p99GapMs": 252,
       "maxGapMs": 281
     },
     {
-      "name": "Host",
-      "deltasPerSec": 5.38,
-      "avgBytes": 1392,
-      "p99GapMs": 251,
-      "maxGapMs": 384
-    },
-    {
       "name": "Lee",
-      "deltasPerSec": 5.38,
-      "avgBytes": 1392,
+      "deltasPerSec": 5.37,
+      "avgBytes": 1413,
       "p99GapMs": 252,
-      "maxGapMs": 384
+      "maxGapMs": 281
     }
   ],
   "usage": {
     "day": "2026-10-08",
-    "rounds": 54,
+    "rounds": 56,
     "roundCap": 5000,
     "small": 13,
     "smallCap": 400,
-    "tokensIn": 145615,
-    "tokensOut": 27573,
-    "costUSD": 0.5363,
+    "tokensIn": 155594,
+    "tokensOut": 28184,
+    "costUSD": 0.5609,
     "avoided": 0,
-    "lastCallUSD": 0.01072,
+    "lastCallUSD": 0.01116,
     "byKind": {
       "debate_open": {
         "calls": 10,
-        "costUSD": 0.0822,
-        "avgMs": 1512
+        "costUSD": 0.0821,
+        "avgMs": 1494
       },
       "debate_final": {
         "calls": 10,
         "costUSD": 0.1001,
-        "avgMs": 1940
+        "avgMs": 1926
       },
       "round": {
         "calls": 23,
-        "costUSD": 0.2408,
-        "avgMs": 1939
+        "costUSD": 0.2508,
+        "avgMs": 1941
       },
       "check": {
-        "calls": 11,
-        "costUSD": 0.1116,
-        "avgMs": 1904
+        "calls": 12,
+        "costUSD": 0.1261,
+        "avgMs": 1933
       },
       "ask": {
         "calls": 9,
-        "costUSD": 0.001,
-        "avgMs": 534
+        "costUSD": 0.0011,
+        "avgMs": 533
       },
       "narrator": {
         "calls": 4,
         "costUSD": 0.0006,
-        "avgMs": 747
+        "avgMs": 763
       }
     }
   }

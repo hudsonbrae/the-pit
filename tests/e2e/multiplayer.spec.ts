@@ -163,7 +163,7 @@ test('host chaos, the timeline, AI science, closing bell → Legends and "Previo
   await host.click('#hostBtn');
   await host.click('#closeBtn');
   await expect(host.locator('#recap')).toBeVisible({ timeout: 5000 });
-  await expect(host.locator('#recapBody')).toContainText('New record');
+  await expect(host.locator('#recapBody')).toContainText(/new record/i);
   await host.click('#rNew');
   await expect(host.locator('#prev')).toBeVisible({ timeout: 5000 });
   await expect(host.locator('#prevBody')).toContainText('NEW RECORD');

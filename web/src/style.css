@@ -435,6 +435,17 @@ img{max-width:100%}
   .floor{display:grid}
   .agent{flex:none;border-right:0;border-bottom:1px solid var(--line)}
   .dock{display:grid;grid-template-columns:minmax(0,1fr) 56px 120px 120px;gap:8px;align-items:center;position:fixed;left:0;right:0;bottom:0;z-index:15;padding:6px 16px calc(6px + env(safe-area-inset-bottom,0px));background:var(--panel);border-top:1px solid var(--line2)}
+  .brand p,#soundBtn,.intel{display:none}
+  .bar{gap:6px 12px;padding-bottom:6px}
+  .brand h1{font-size:28px}
+  .quote .px{font-size:34px}
+  .pills{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .pill{flex:none}
+  .chartbox,.p-chart .chartbox{height:calc(100dvh - 160px)}
+  .dock .dk{display:flex;flex-direction:column;font:500 11px var(--mono);color:var(--muted);min-width:0}
+  .dock .dk b{font:600 16px var(--mono);color:var(--fg)}
+  .dsize{height:44px;border:1px solid var(--line2);background:var(--panel2);border-radius:4px;font:600 13px var(--mono)}
+  .p-you .seg,.p-you .tradebtns{display:none}
 }
 @media (pointer:coarse){
   .seg button,.mini button,.pill.pbtn,.chip,.btn{min-height:40px}
@@ -506,7 +517,43 @@ body.watching .p-you .seg,body.watching .p-you .tradebtns,body.watching .p-desk 
 .prev #prevBody b{font:700 10.5px var(--mono);letter-spacing:.1em;color:var(--amber);margin-right:6px}
 .prev .x{position:absolute;top:8px;right:8px;background:transparent;border:1px solid var(--line2);border-radius:4px;width:32px;height:32px;font:600 15px var(--mono)}
 @keyframes prevIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
-@media (max-width:640px){.prev{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
+@media (max-width:760px),(max-height:500px) and (orientation:landscape){
+  .prev{bottom:calc(72px + env(safe-area-inset-bottom,0px));max-height:calc(100dvh - 140px);overflow:auto}
+}
+.prev .x{width:40px;height:40px}
+.prev{padding-right:56px}
 .rcard.rec{border:1px solid var(--amber)}
 .play{display:grid;gap:6px;font:400 13.5px/1.4 var(--sans);margin:4px 0 10px}
 .play b{display:block;font:700 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--c,var(--amber))}
+
+/* review fixes */
+.pausebanner{position:absolute;right:12px;top:10px;z-index:2;padding:5px 10px;border:1px solid var(--amber);color:var(--amber);border-radius:3px;font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;background:var(--panel)}
+.rcard{align-content:start}
+.rcard b:empty{display:none}
+.rgrid .rcard.rec{order:1}
+.recapbox .story{max-height:none;overflow:visible}
+.p-chart .ph small{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-chart .ph small.head{color:var(--fg)}
+.p-chart .ph small.head b{color:var(--amber);font-weight:700}
+.btn.demo,.btn.demo small{white-space:normal}
+.lobby{grid-template-columns:minmax(0,1fr)}
+.lobbybox{width:min(440px,100%);justify-self:center;min-width:0;grid-template-columns:minmax(0,1fr)}
+.lobbycard{grid-template-columns:minmax(0,1fr)}
+.lobbycard .newsform input{min-width:0;flex:1}
+.lobbybox .status:empty{display:none}
+.lobby .brand p{display:block}
+.sci #sciTxt{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.sci{min-height:44px}
+.chaos .btn{white-space:normal;line-height:1.15}
+.p-story .ph .mini button{min-height:40px}
+.toggle{min-height:40px}
+.toggle input{width:20px;height:20px}
+.tools .btn{min-height:40px}
+.seg button{min-height:40px}
+.calib .note{font:400 13px/1.45 var(--sans)}
+#dTend .voice{margin-top:6px}
+@media (max-width:760px){
+  .p-floor .ph small{display:none}
+  #hostBtn{order:-1;color:var(--amber);border-color:var(--amber)}
+  .dh .x{width:44px;height:44px}
+}
