@@ -49,6 +49,15 @@ export class Engine {
   onTrade: ((t: Trade) => void) | null = null;
   /** Per-tick pull of fvTarget toward the real price (Real mode). ~0.2%/tick ≈ 2 min half-life. */
   anchorK = 0.002;
+  /**
+   * Scenario / lab knobs. 1 = the original behaviour.
+   * vol: fair-value noise · liq: market-maker size · spread: market-maker spread · crowd: crowd activity.
+   */
+  knobs = { vol: 1, liq: 1, spread: 1, crowd: 1 };
+  /** Market makers stand aside for this many ticks (liquidity withdrawal). */
+  mmPause = 0;
+  /** Scripted order flow (scenarios): a market order every tick until ticks runs out. */
+  programs: { owner: string; side: Side; perTick: number; ticks: number }[] = [];
 
   constructor(opts: { start?: number; random?: () => number } = {}) {
     const p = opts.start ?? 100;
@@ -104,7 +113,10 @@ export class Engine {
     qty = Math.floor(qty);
     if (!(qty > 0)) return { filled: 0, avg: 0, rest: 0 };
     if (price != null) price = r2(price);
-    if (S.halted > 0) { S.pending.push([owner, side, qty, price]); return { filled: 0, avg: 0, rest: qty, queued: true }; }
+    if (S.halted > 0) {
+      if (S.pending.length >= 300) return { filled: 0, avg: 0, rest: 0 };          // bounded queue during a halt
+      S.pending.push([owner, side, qty, price]); return { filled: 0, avg: 0, rest: qty, queued: true };
+    }
     const opp = side === 'buy' ? S.asks : S.bids;
     let left = qty, filled = 0, notional = 0;
     while (left > 0 && opp.length) {
@@ -127,6 +139,17 @@ export class Engine {
     if (S.candles.length > 900) S.candles.shift();
   }
 
+  /**
+   * Market stress 0..2 from the 5-second move, with a 0.8% dead-band so calm noise
+   * never feeds back into wider spreads (measured: without the dead-band calm
+   * volatility doubled). Dealers widen and shrink their quotes as stress rises.
+   */
+  stress() {
+    const h = this.S.hist, L = this.S.last;
+    const r5 = h.length > 20 ? Math.abs(L / h[h.length - 21] - 1) : 0;
+    return Math.min(2, Math.max(0, r5 - 0.008) / 0.01);
+  }
+
   private quoteMM(m: number, L: number) {
     const S = this.S, R = this.R;
     const id = 'mm' + m;
@@ -134,25 +157,30 @@ export class Engine {
     const inv = S.mmInv[id] || 0;
     const ref = L * 0.88 + S.fv * 0.12;
     const skew = -inv * 0.000003 * L;
-    const half = Math.max(0.02, L * 0.0005 * (1 + m * 0.6));
+    const st = this.stress();
+    const half = Math.max(0.02, L * 0.0005 * (1 + m * 0.6)) * this.knobs.spread * (1 + st);
+    const cap = 1500;                                    // dealers stop adding to a large inventory
     for (let k = 0; k < 4; k++) {
       const step = half * (1 + k * 1.3);
-      const sz = Math.round(120 + R() * 260);
-      this.submit(id, 'buy', sz, ref + skew - step);
-      this.submit(id, 'sell', sz, ref + skew + step);
+      const sz = Math.max(10, Math.round((120 + R() * 260) * this.knobs.liq / (1 + 0.3 * st)));
+      if (inv < cap) this.submit(id, 'buy', sz, ref + skew - step);
+      if (inv > -cap) this.submit(id, 'sell', sz, ref + skew + step);
     }
   }
 
   private crowd() {
     const S = this.S, R = this.R;
-    S.fvTarget *= Math.exp(this.gauss() * 0.0006);
+    S.fvTarget *= Math.exp(this.gauss() * 0.0006 * this.knobs.vol);
     if (S.anchor != null) S.fvTarget += (S.anchor - S.fvTarget) * this.anchorK;
     S.fv += (S.fvTarget - S.fv) * S.fvK;
-    // market makers
-    for (let m = 0; m < 4; m++) if (R() < 0.45 || !S.bids.length || !S.asks.length) this.quoteMM(m, S.last);
+    S.fvK += (0.03 - S.fvK) * 0.01;                      // "fast" news fades back to normal speed (~17 s half-life)
+    // market makers (unless they have stepped away)
+    if (this.mmPause > 0) this.mmPause--;
+    else for (let m = 0; m < 4; m++) if (R() < 0.45 || !S.bids.length || !S.asks.length) this.quoteMM(m, S.last);
+    const cr = this.knobs.crowd;
     const L = S.last;
     // fundamental traders
-    for (let i = 0; i < 22; i++) if (R() < 0.12) {
+    for (let i = 0; i < 22; i++) if (R() < 0.12 * cr) {
       const est = S.fv * (1 + this.gauss() * 0.012);
       const gap = (est - S.last) / S.last;
       if (Math.abs(gap) > 0.003) {
@@ -161,11 +189,11 @@ export class Engine {
       }
     }
     // noise traders
-    for (let i = 0; i < 18; i++) if (R() < 0.08) this.submit('n' + i, R() < 0.5 ? 'buy' : 'sell', 10 + Math.round(R() * 90), null);
+    for (let i = 0; i < 18; i++) if (R() < 0.10 * cr) this.submit('n' + i, R() < 0.5 ? 'buy' : 'sell', 10 + Math.round(R() * 90), null);
     // momentum traders
     const ref = S.hist[Math.max(0, S.hist.length - 40)] || L;
     const ret = L / ref - 1;
-    for (let i = 0; i < 10; i++) if (R() < 0.08 && Math.abs(ret) > 0.004) this.submit('m' + i, ret > 0 ? 'buy' : 'sell', 30 + Math.round(R() * 120), null);
+    for (let i = 0; i < 10; i++) if (R() < 0.08 * cr && Math.abs(ret) > 0.008) this.submit('m' + i, ret > 0 ? 'buy' : 'sell', 30 + Math.round(R() * 120), null);
   }
 
   private halt(dir: 'up' | 'down') {
@@ -201,12 +229,23 @@ export class Engine {
       return;
     }
     this.crowd();
+    for (const p of this.programs) if (p.ticks > 0) { p.ticks--; this.submit(p.owner, p.side, p.perTick, null); }
+    if (this.programs.length && this.programs.every(p => p.ticks <= 0)) this.programs = [];
     S.hist.push(S.last); if (S.hist.length > 400) S.hist.shift();
     if (S.haltCool > 0) S.haltCool--;
     const ref = S.hist[Math.max(0, S.hist.length - 121)];
     if (S.haltCool === 0 && S.t > 200 && Math.abs(S.last / ref - 1) > 0.10) this.halt(S.last > ref ? 'up' : 'down');
     S.t++;
   }
+
+  /** Market makers pull their quotes and stay away for `ticks` (a liquidity shock). */
+  withdraw(ticks: number) {
+    for (let m = 0; m < 4; m++) this.cancel('mm' + m);
+    this.mmPause = Math.max(this.mmPause, ticks);
+  }
+
+  /** Exchange-imposed volatility pause (scenarios). Same mechanics as the circuit breaker. */
+  forceHalt(dir: 'up' | 'down') { if (!this.S.halted && this.S.cur) this.halt(dir); }
 
   shock(pct: number, speed: string) {
     const S = this.S;

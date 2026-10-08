@@ -5,13 +5,16 @@ export type Effort = 'low' | 'medium' | 'high';
 
 export interface LLMRequest {
   model: string;
+  /** Static instructions (rules, personas, format). Sent as the system prompt and prompt-cached. */
+  system?: string;
+  /** The user turn: data only. */
   prompt: string;
   maxTokens: number;
   effort?: Effort;
   signal?: AbortSignal;
 }
 
-export interface LLMUsage { inputTokens: number; outputTokens: number; stopReason: string | null; model: string }
+export interface LLMUsage { inputTokens: number; outputTokens: number; stopReason: string | null; model: string; cachedTokens?: number }
 
 /** Error with a short machine code the room uses to pick fallback copy. */
 export class LLMError extends Error {

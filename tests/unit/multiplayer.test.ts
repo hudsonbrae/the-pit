@@ -64,7 +64,7 @@ describe('multiplayer rooms', () => {
     const again = join(room, c2, 'token-sam-1', 'Sam');
     expect(again.id).toBe(p.id);
     const hello = c2.of('hello')[0];
-    expect(hello.you.id).toBe(p.id);
+    expect(hello.you!.id).toBe(p.id);
     expect(hello.snap.acc[p.id][1]).toBe(sh);
   });
 

@@ -3,8 +3,8 @@
 
 import { AGENTS } from './agents.js';
 
-export interface DeskLine { type?: 'desk'; impact: number; speed: string; read: string }
-export interface TradeLine { type?: 'trade'; id: string; action: string; qty: number; order: string; limit?: number | null; conviction: number; thought: string; lesson?: string }
+export interface DeskLine { type?: 'desk'; impact: number; speed: string; read: string; kind?: string; category?: string }
+export interface TradeLine { type?: 'trade'; id: string; action: string; qty: number; order: string; limit?: number | null; conviction: number; call?: string; signals?: Record<string, number>; thought: string; lesson?: string }
 
 export function offline(headline: string | null, last: number, open: number, random: () => number = Math.random): { desk: DeskLine; trades: TradeLine[] } {
   const t = (headline || '').toLowerCase();
@@ -24,7 +24,10 @@ export function offline(headline: string | null, last: number, open: number, ran
     pip: [B, Math.round(2000 + 4000 * mag), dir > 0 ? 'LETS GO. Sending it, max size.' : 'This is a gift dip... wait no, everyone is selling. Out.'],
   };
   return {
-    desk: { impact: +impact.toFixed(1), speed: Math.abs(impact) > 10 ? 'fast' : 'slow', read: headline ? 'Offline keyword read (Claude not connected).' : 'Floor check on offline rules.' },
-    trades: AGENTS.map(a => ({ id: a.id, action: plan[a.id][0], qty: plan[a.id][1], order: 'market', conviction: 40 + Math.round(mag * 50), thought: plan[a.id][2] })),
+    desk: { impact: +impact.toFixed(1), kind: 'confirmed', category: 'other', speed: Math.abs(impact) > 10 ? 'fast' : 'slow', read: headline ? 'Offline keyword read (Claude not connected).' : 'Floor check on offline rules.' },
+    trades: AGENTS.map(a => {
+      const act = plan[a.id][0], n = Math.max(-2, Math.min(2, Math.round(impact / 6)));
+      return { id: a.id, action: act, qty: plan[a.id][1], order: 'market', conviction: 40 + Math.round(mag * 50), call: act === 'buy' ? 'up' : act === 'sell' ? 'down' : 'flat', signals: { news: n, trend: 0, value: a.id === 'marlowe' ? -n : 0, flow: 0, risk: Math.abs(impact) > 10 ? -1 : 0 }, thought: plan[a.id][2] };
+    }),
   };
 }

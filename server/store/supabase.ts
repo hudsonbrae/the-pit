@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { LeaderRow, NewsRow, PlayerRow, RoomRow, Store } from './store.js';
+import type { TraderStats } from '../intel/stats.js';
+import type { DayUsage } from '../costguard.js';
 
 /**
  * Supabase Postgres via the service-role key (server only; never sent to browsers).
@@ -14,11 +16,11 @@ export class SupabaseStore implements Store {
     this.db = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false }, ...(fetchFn ? { global: { fetch: fetchFn } } : {}) });
   }
 
-  private warn(what: string, error: unknown) { if (error) console.warn(JSON.stringify({ ev: 'db_error', what, error: String((error as { message?: string }).message ?? error) })); }
+  private warn(what: string, error: unknown) { if (error) throw new Error(`${what}: ${String((error as { message?: string }).message ?? error)}`); }
 
   async createRoom(r: RoomRow) { const { error } = await this.db.from('rooms').insert(r); this.warn('createRoom', error); }
   async getRoom(code: string) {
-    const { data, error } = await this.db.from('rooms').select('code,mode,ticker,host_token,created_at').eq('code', code).maybeSingle();
+    const { data, error } = await this.db.from('rooms').select('code,mode,ticker,host_token,seed,created_at').eq('code', code).maybeSingle();
     this.warn('getRoom', error); return (data as RoomRow) ?? null;
   }
   async touchRoom(code: string) { const { error } = await this.db.from('rooms').update({ last_active_at: new Date().toISOString() }).eq('code', code); this.warn('touchRoom', error); }
@@ -44,4 +46,23 @@ export class SupabaseStore implements Store {
   }
   async logNews(r: NewsRow) { const { error } = await this.db.from('news_log').insert(r); this.warn('logNews', error); }
   async saveLeaderboard(rows: LeaderRow[]) { if (!rows.length) return; const { error } = await this.db.from('leaderboards').insert(rows); this.warn('saveLeaderboard', error); }
+  async loadStats(code: string) {
+    const { data, error } = await this.db.from('trader_stats').select('agent_id,stats').eq('room_code', code);
+    this.warn('loadStats', error);
+    return Object.fromEntries(((data as { agent_id: string; stats: TraderStats }[]) ?? []).map(r => [r.agent_id, r.stats]));
+  }
+  async saveStats(code: string, agentId: string, stats: TraderStats, lab: string) {
+    const { error } = await this.db.from('trader_stats').upsert({ room_code: code, agent_id: agentId, stats, lab, updated_at: new Date().toISOString() }, { onConflict: 'room_code,agent_id' });
+    this.warn('saveStats', error);
+  }
+  async loadUsage(day: string) {
+    const { data, error } = await this.db.from('ai_usage_daily').select('day,rounds,small,tokens_in,tokens_out,cost_usd').eq('day', day).maybeSingle();
+    this.warn('loadUsage', error);
+    const r = data as { day: string; rounds: number; small: number; tokens_in: number; tokens_out: number; cost_usd: number } | null;
+    return r ? { day: r.day, rounds: r.rounds, small: r.small, tokensIn: r.tokens_in, tokensOut: r.tokens_out, cost: r.cost_usd } : null;
+  }
+  async saveUsage(u: DayUsage) {
+    const { error } = await this.db.from('ai_usage_daily').upsert({ day: u.day, rounds: u.rounds, small: u.small, tokens_in: u.tokensIn, tokens_out: u.tokensOut, cost_usd: u.cost, updated_at: new Date().toISOString() }, { onConflict: 'day' });
+    this.warn('saveUsage', error);
+  }
 }

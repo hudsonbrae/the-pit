@@ -18,11 +18,21 @@ export interface Config {
   aiProvider: 'auto' | 'anthropic' | 'mock' | 'off';
   modelRound: string;
   modelFast: string;
+  /** Model per role. Change any of them in .env without touching code. */
+  models: { round: string; debate: string; news: string; ask: string; narrator: string };
   effortRound: 'low' | 'medium' | 'high';
   effortDeep: 'low' | 'medium' | 'high';
   aiRoundsPerMinPerRoom: number;
   aiDailyRoundCap: number;
   aiDailySmallCap: number;
+  aiRoomDailyRoundCap: number;
+  aiRoundTimeoutMs: number;
+  newsCooldownSec: number;
+  adminToken: string;
+  allowedOrigins: string[];
+  maxSocketsPerIp: number;
+  roomCreatesPerIpPerMin: number;
+  maxTickers: number;
   finnhubKey: string;
   marketProvider: 'auto' | 'finnhub' | 'mock';
   quotePollSec: number;
@@ -49,6 +59,14 @@ export function loadConfig(over: Partial<Config> = {}): Config {
     aiRoundsPerMinPerRoom: num('AI_ROUNDS_PER_MIN_PER_ROOM', 3),
     aiDailyRoundCap: num('AI_DAILY_ROUND_CAP', 200),
     aiDailySmallCap: num('AI_DAILY_SMALL_CAP', 400),
+    aiRoomDailyRoundCap: num('AI_ROOM_DAILY_ROUND_CAP', 80),
+    aiRoundTimeoutMs: num('AI_ROUND_TIMEOUT_MS', 40_000),
+    newsCooldownSec: num('NEWS_COOLDOWN_SEC', 8),
+    adminToken: str('ADMIN_TOKEN'),
+    allowedOrigins: str('ALLOWED_ORIGINS').split(',').map(s => s.trim()).filter(Boolean),
+    maxSocketsPerIp: num('MAX_SOCKETS_PER_IP', 24),
+    roomCreatesPerIpPerMin: num('ROOM_CREATES_PER_IP_PER_MIN', 6),
+    maxTickers: num('MAX_TICKERS', 10),
     finnhubKey: str('FINNHUB_API_KEY'),
     marketProvider: str('MARKET_PROVIDER', 'auto') as Config['marketProvider'],
     quotePollSec: num('QUOTE_POLL_SEC', 15),
@@ -60,6 +78,13 @@ export function loadConfig(over: Partial<Config> = {}): Config {
     maxRooms: num('MAX_ROOMS', 50),
     maxPlayersPerRoom: num('MAX_PLAYERS_PER_ROOM', 12),
     mockNewsEverySec: num('MOCK_NEWS_EVERY_SEC', 240),
+    models: {
+      round: str('AI_MODEL_ROUND', 'claude-sonnet-5-5'),
+      debate: str('AI_MODEL_DEBATE') || str('AI_MODEL_ROUND', 'claude-sonnet-5-5'),
+      news: str('AI_MODEL_NEWS') || str('AI_MODEL_FAST', 'claude-haiku-5-5'),
+      ask: str('AI_MODEL_ASK') || str('AI_MODEL_FAST', 'claude-haiku-5-5'),
+      narrator: str('AI_MODEL_NARRATOR') || str('AI_MODEL_FAST', 'claude-haiku-5-5'),
+    },
     ...over,
   };
 }

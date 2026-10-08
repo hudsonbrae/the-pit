@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { deps, simRoom, RecConn, ScriptLLM, script, IDS, until } from './helpers';
 import { FakeLLM } from '../../server/ai/fake';
 import { lineSplitter, parseLine } from '../../server/ai/llm';
-import { tradePrompt } from '../../server/prompts';
+import { roundUser } from '../../server/prompts';
 
 describe('AI rounds on the server', () => {
   it('two rounds in a row: the second prompt contains the lessons written in the first', async () => {
@@ -33,8 +33,8 @@ describe('AI rounds on the server', () => {
     // a new process: same store, fresh room object
     const again = simRoom({ ...d, llm: new ScriptLLM([script(0, () => '')]) }, 'LSSNS');
     await again.loadPersisted();
-    const p = tradePrompt((again as unknown as { ctx(): Parameters<typeof tradePrompt>[0] }).ctx(), 'x');
-    expect(p).toContain('1) vega: never chase a halt.');
+    const p = roundUser(again.ctx('x'), 'x');
+    expect(p).toContain('1) <lesson>vega: never chase a halt.</lesson>');
   });
 
   it('streams desk, trades and chatter to clients line by line, before the model has finished', async () => {

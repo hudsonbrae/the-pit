@@ -40,7 +40,7 @@ describe('AnthropicLLM (real SDK against a local fake API)', () => {
     let text = '';
     const u = await llm.stream({ model: 'claude-sonnet-5-5', prompt: 'hello', maxTokens: 4000, effort: 'low' }, d => { text += d; });
     expect(text).toBe('{"type":"desk","impact":3}\n{"type":"trade","id":"pip"}\n');
-    expect(u).toEqual({ inputTokens: 1234, outputTokens: 42, stopReason: 'end_turn', model: 'claude-sonnet-5-5' });
+    expect(u).toEqual({ inputTokens: 1234, cachedTokens: 0, outputTokens: 42, stopReason: 'end_turn', model: 'claude-sonnet-5-5' });
     const req = seen.at(-1)!;
     expect(req.body).toMatchObject({ model: 'claude-sonnet-5-5', max_tokens: 4000, stream: true, output_config: { effort: 'low' }, messages: [{ role: 'user', content: 'hello' }] });
     expect(req.headers['x-api-key']).toBe('good');

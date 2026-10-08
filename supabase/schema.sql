@@ -17,7 +17,7 @@ create table if not exists rooms (
 -- One row per player per room: their simulated cash and position.
 create table if not exists players (
   room_code    text not null references rooms(code) on delete cascade,
-  token        text not null,          -- random id kept in the player's browser
+  token        text not null,          -- SHA-256 of the random id kept in the player's browser
   pid          text not null,          -- short public id inside the room (p1, p2, ...)
   name         text not null,
   color        text not null,
@@ -74,3 +74,31 @@ alter table players        enable row level security;
 alter table trader_lessons enable row level security;
 alter table news_log       enable row level security;
 alter table leaderboards   enable row level security;
+
+-- ---- Added in the maximum-potential pass (safe to run on an existing project) ----
+
+alter table rooms add column if not exists seed bigint;
+
+-- Each AI trader's measured track record (scored calls, calibration, P&L), per room.
+create table if not exists trader_stats (
+  room_code   text not null references rooms(code) on delete cascade,
+  agent_id    text not null,
+  stats       jsonb not null,
+  lab         text,                    -- the room's AI configuration when last saved (for experiments)
+  updated_at  timestamptz not null default now(),
+  primary key (room_code, agent_id)
+);
+
+-- The day's AI usage, so the daily caps survive a restart.
+create table if not exists ai_usage_daily (
+  day         text primary key,        -- YYYY-MM-DD (UTC)
+  rounds      integer not null default 0,
+  small       integer not null default 0,
+  tokens_in   bigint not null default 0,
+  tokens_out  bigint not null default 0,
+  cost_usd    double precision not null default 0,
+  updated_at  timestamptz not null default now()
+);
+
+alter table trader_stats   enable row level security;
+alter table ai_usage_daily enable row level security;

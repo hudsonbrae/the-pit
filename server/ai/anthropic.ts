@@ -16,6 +16,7 @@ export class AnthropicLLM implements LLM {
       const stream = this.client.messages.stream({
         model: req.model,
         max_tokens: req.maxTokens,
+        ...(req.system ? { system: [{ type: 'text' as const, text: req.system, cache_control: { type: 'ephemeral' as const } }] } : {}),
         messages: [{ role: 'user', content: req.prompt }],
         ...(req.effort ? { output_config: { effort: req.effort } } : {}),
       }, { signal: req.signal });
@@ -24,7 +25,7 @@ export class AnthropicLLM implements LLM {
       }
       const msg = await stream.finalMessage();
       if (msg.stop_reason === 'refusal') throw new LLMError('refused', 'Claude declined this request');
-      return { inputTokens: msg.usage.input_tokens, outputTokens: msg.usage.output_tokens, stopReason: msg.stop_reason, model: msg.model };
+      return { inputTokens: msg.usage.input_tokens + (msg.usage.cache_read_input_tokens ?? 0) + (msg.usage.cache_creation_input_tokens ?? 0), cachedTokens: msg.usage.cache_read_input_tokens ?? 0, outputTokens: msg.usage.output_tokens, stopReason: msg.stop_reason, model: msg.model };
     } catch (e) {
       if (e instanceof LLMError) throw e;
       if (e instanceof Anthropic.APIUserAbortError || req.signal?.aborted) throw new LLMError('cancelled', 'cancelled');

@@ -26,6 +26,7 @@ describe('Real Market mode', () => {
   it('a new headline triggers exactly one AI round; duplicates are ignored', async () => {
     const { market, hub, llm, rooms } = setup();
     const room = await rooms.create({ mode: 'real', ticker: 'NVDA', hostToken: 'host-token-1' });
+    room.lab.debate = 'off';                          // one call per round keeps the count simple; debates are tested below
     room.attach(new RecConn(), 'host-token-1', 'Brae');
     const feed = hub.feeds.get('NVDA')!;
     expect(room.stats.rounds).toBe(0);
@@ -34,7 +35,7 @@ describe('Real Market mode', () => {
     await feed.pollNews();
     await until(() => room.stats.rounds === 1 && idle(room));
     expect(llm.calls).toHaveLength(1);
-    expect(llm.calls[0].prompt).toContain('BREAKING HEADLINE: "Nvidia unveils next-generation AI chip"');
+    expect(llm.calls[0].prompt).toContain('BREAKING HEADLINE (source: live news wire):\n<headline>Nvidia unveils next-generation AI chip</headline>');
 
     // the same story again: same id, then same text under a new id, then a re-punctuated copy
     market.push('NVDA', { id: 'n1', headline: 'Nvidia unveils next-generation AI chip' });
@@ -83,7 +84,9 @@ describe('Real Market mode', () => {
     await hub.feeds.get('TSLA')!.pollNews();
     expect(newsCalls() - before).toBe(1);
     await until(() => a.stats.rounds === 1 && b.stats.rounds === 1 && idle(a) && idle(b));
-    expect(llm.calls).toHaveLength(2);       // one round per room, not per poll per room
+    // one round per room (each a two-call floor debate, the default for LIVE news), not per poll per room
+    expect(llm.calls).toHaveLength(4);
+    expect(a.stats.debates + b.stats.debates).toBe(2);
     await rooms.closeAll();
   });
 

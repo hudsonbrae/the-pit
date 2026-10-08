@@ -1,5 +1,9 @@
 import { createApp } from './app.js';
 
+// Last line of defence: log, never die, on a stray rejection or exception.
+process.on('unhandledRejection', e => console.error(JSON.stringify({ ev: 'unhandled_rejection', error: String((e as Error)?.stack ?? e) })));
+process.on('uncaughtException', e => console.error(JSON.stringify({ ev: 'uncaught_exception', error: String(e?.stack ?? e) })));
+
 const app = createApp();
 const port = await app.listen();
 const d = app.deps;
