@@ -147,7 +147,7 @@ open the Supabase dashboard and click **Restore project**.
    redeploys by itself.
 8. **Your control room (optional):** Render created a random `ADMIN_TOKEN` for
    you. Copy it from the service's **Environment** tab and open
-   `https://the-pit-xxxx.onrender.com/admin?token=PASTE_IT_HERE`. It shows every
+   `https://the-pit-xxxx.onrender.com/admin#token=PASTE_IT_HERE`. It shows every
    room, AI latency, tokens, the day's estimated cost, data freshness and any
    errors. Don't share that link.
 

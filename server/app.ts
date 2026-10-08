@@ -5,6 +5,7 @@
 // check, bounded payloads, security headers.
 
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'node:http';
+import { timingSafeEqual, createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -41,7 +42,7 @@ export function buildDeps(o: AppOverrides = {}): RoomDeps & { store: SafeStore }
   else if (cfg.marketProvider === 'mock' || (cfg.marketProvider === 'auto' && !cfg.finnhubKey)) market = new FakeMarket({ autoNewsEverySec: cfg.mockNewsEverySec });
   else market = new FinnhubProvider(cfg.finnhubKey);
   const hub = market ? new MarketHub(market, { quoteEverySec: cfg.quotePollSec, newsEverySec: cfg.newsPollSec, autoPoll: o.marketAutoPoll }) : null;
-  const guard = new CostGuard({ roundsPerMin: cfg.aiRoundsPerMinPerRoom, dailyRounds: cfg.aiDailyRoundCap, dailySmall: cfg.aiDailySmallCap, roomDailyRounds: cfg.aiRoomDailyRoundCap });
+  const guard = new CostGuard({ roundsPerMin: cfg.aiRoundsPerMinPerRoom, dailyRounds: cfg.aiDailyRoundCap, dailySmall: cfg.aiDailySmallCap, roomDailyRounds: cfg.aiRoomDailyRoundCap, ownerDailyRounds: cfg.aiOwnerDailyRoundCap, roomDailySmall: cfg.aiRoomDailySmallCap });
   return { cfg, llm, guard, store, hub, random: o.random, aiState: { dead: false } };
 }
 
@@ -50,23 +51,35 @@ const TYPES: Record<string, string> = {
   '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.txt': 'text/plain; charset=utf-8',
 };
 
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 const SECURITY_HEADERS: Record<string, string> = {
-  'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+  'content-security-policy': CSP,
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'strict-origin-when-cross-origin',
   'x-frame-options': 'DENY',
 };
 
-/** A tiny fixed-window counter keyed by anything (IP, socket). */
+/** A tiny fixed-window counter keyed by anything (IP, socket). Expired entries are evicted, never the live ones. */
 class Limiter {
   private m = new Map<string, { n: number; at: number }>();
   constructor(private max: number, private windowMs: number) {}
   hit(k: string): boolean {
     const now = Date.now(), e = this.m.get(k);
-    if (!e || now - e.at > this.windowMs) { this.m.set(k, { n: 1, at: now }); if (this.m.size > 10_000) this.m.clear(); return true; }
+    if (!e || now - e.at > this.windowMs) {
+      if (this.m.size > 20_000) for (const [key, v] of this.m) if (now - v.at > this.windowMs) this.m.delete(key);
+      this.m.set(k, { n: 1, at: now }); return true;
+    }
     e.n++; return e.n <= this.max;
   }
 }
+
+/** IPv6 clients are keyed by their /64, so address rotation can't dodge limits. */
+const ipKey = (ip: string) => {
+  const v = ip.replace(/^::ffff:/, '');
+  if (!v.includes(':')) return v;
+  return v.split(':').slice(0, 4).join(':') + '::/64';
+};
+const sha = (s: string) => createHash('sha256').update(s).digest();
 
 export interface App { server: Server; rooms: Rooms; deps: RoomDeps; wss: WebSocketServer; close(): Promise<void>; listen(port?: number): Promise<number> }
 
@@ -85,12 +98,18 @@ export function createApp(o: AppOverrides = {}): App {
 
   const createLimit = new Limiter(deps.cfg.roomCreatesPerIpPerMin, 60_000);
   const lookupLimit = new Limiter(60, 60_000);
+  const joinLimit = new Limiter(40, 60_000);           // WebSocket joins per IP per minute (also bounds code guessing)
+  const restoreLimit = new Limiter(10, 60_000);        // rooms rebuilt from the database per IP per minute
   const socketsPerIp = new Map<string, number>();
 
   const ipOf = (req: IncomingMessage) => {
-    // Behind Render's proxy the client address is the LAST entry the proxy appended.
-    const xff = String(req.headers['x-forwarded-for'] ?? '').split(',').map(s => s.trim()).filter(Boolean);
-    return xff.at(-1) || req.socket.remoteAddress || 'unknown';
+    // Behind a trusted proxy (Render) the client is the LAST X-Forwarded-For entry the proxy appended.
+    // Without one, X-Forwarded-For is attacker-controlled and ignored.
+    if (deps.cfg.trustProxy) {
+      const xff = String(req.headers['x-forwarded-for'] ?? '').split(',').map(s => s.trim()).filter(Boolean);
+      if (xff.length) return ipKey(xff.at(-1)!);
+    }
+    return ipKey(req.socket.remoteAddress || 'unknown');
   };
   const json = (res: ServerResponse, status: number, body: unknown) => {
     res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', ...SECURITY_HEADERS });
@@ -99,10 +118,16 @@ export function createApp(o: AppOverrides = {}): App {
   const body = (req: IncomingMessage) => new Promise<string>((ok, bad) => {
     let s = ''; req.on('data', c => { s += c; if (s.length > 10_000) { bad(new Error('too large')); req.destroy(); } }); req.on('end', () => ok(s)); req.on('error', bad);
   });
-  const isAdmin = (req: IncomingMessage, url: URL) => {
+  const isAdmin = (req: IncomingMessage) => {
     const tok = deps.cfg.adminToken;
-    if (!tok) { const a = req.socket.remoteAddress ?? ''; return !req.headers['x-forwarded-for'] && (a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1'); }
-    return (url.searchParams.get('token') ?? req.headers['x-admin-token']) === tok;
+    if (!tok) {
+      // No token: loopback only, and never behind a proxy (a proxy makes every visitor look local).
+      if (deps.cfg.trustProxy || req.headers['x-forwarded-for'] || req.headers['forwarded']) return false;
+      const a = req.socket.remoteAddress ?? '';
+      return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
+    }
+    const given = String(req.headers['x-admin-token'] ?? '');
+    return timingSafeEqual(sha(given), sha(tok));               // constant-time; token travels in a header, never a URL
   };
 
   async function serveStatic(req: IncomingMessage, res: ServerResponse, path: string) {
@@ -151,25 +176,30 @@ export function createApp(o: AppOverrides = {}): App {
         let players = 0; for (const r of rooms.rooms.values()) players += r.online;
         return json(res, 200, { ok: true, rooms: rooms.rooms.size, playersOnline: players, ai: deps.llm ? (deps.aiState.dead ? 'key rejected' : deps.llm.label) : 'off', store: deps.store.kind, market: deps.hub?.provider.name ?? 'off' });
       }
-      if (url.pathname === '/api/admin') { if (!isAdmin(req, url)) return json(res, 403, { error: 'admin only' }); return json(res, 200, adminData()); }
+      if (url.pathname === '/api/admin') { if (!isAdmin(req)) return json(res, 403, { error: 'admin only' }); return json(res, 200, adminData()); }
       if (url.pathname === '/admin') {
-        if (!isAdmin(req, url)) { res.writeHead(403, { 'content-type': 'text/plain' }); return res.end('Admin only. Set ADMIN_TOKEN and open /admin?token=…'); }
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...SECURITY_HEADERS, 'content-security-policy': SECURITY_HEADERS['content-security-policy'].replace("script-src 'self'", "script-src 'self' 'unsafe-inline'") });
+        // The page itself holds no data; it asks /api/admin with the token from the URL fragment (#token=…),
+        // which browsers never send to the server or put in logs.
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...SECURITY_HEADERS, 'referrer-policy': 'no-referrer', 'content-security-policy': CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'") });
         return res.end(adminHtml);
       }
       if (url.pathname === '/api/rooms' && req.method === 'POST') {
+        // JSON only (a cross-site form or no-cors fetch can't send it), and from this site
+        if (!String(req.headers['content-type'] ?? '').startsWith('application/json')) return json(res, 415, { error: 'Send JSON.' });
+        if (!originOk(req.headers.origin, req.headers.host)) return json(res, 403, { error: 'Cross-site request refused.' });
         if (!createLimit.hit(ipOf(req))) return json(res, 429, { error: 'Too many rooms from here. Wait a minute.' });
         let b: { mode?: unknown; ticker?: unknown; token?: unknown; scenario?: unknown };
         try { b = JSON.parse(await body(req) || '{}'); } catch { return json(res, 400, { error: 'Bad request.' }); }
         const demo = b.scenario === 'demo';
-        const room = await rooms.create({ mode: b.mode === 'real' && !demo ? 'real' : 'sim', ticker: typeof b.ticker === 'string' ? b.ticker : '', hostToken: typeof b.token === 'string' ? b.token : '', seed: demo ? 1987 : undefined });
+        const room = await rooms.create({ mode: b.mode === 'real' && !demo ? 'real' : 'sim', ticker: typeof b.ticker === 'string' ? b.ticker : '', hostToken: typeof b.token === 'string' ? b.token : '', seed: demo ? 1987 : undefined, owner: ipOf(req) });
         if (demo) room.autoStart = 'demo';
         return json(res, 200, { code: room.code, mode: room.mode, ticker: room.ticker });
       }
       const m = /^\/api\/rooms\/([A-Za-z]{5})$/.exec(url.pathname);
       if (m && req.method === 'GET') {
         if (!lookupLimit.hit(ipOf(req))) return json(res, 429, { error: 'Slow down.' });
-        const room = await rooms.get(m[1]);
+        const ip = ipOf(req);
+        const room = await rooms.get(m[1], () => restoreLimit.hit(ip));
         if (!room) return json(res, 404, { error: 'No room with that code.' });
         return json(res, 200, { code: room.code, mode: room.mode, ticker: room.ticker, company: room.co.name, players: room.playersV().length });
       }
@@ -221,9 +251,10 @@ export function createApp(o: AppOverrides = {}): App {
         if (!joined) {
           if (m.k !== 'join' || joining) return;
           joining = true;
+          if (!joinLimit.hit(ip)) { ws.send(JSON.stringify({ k: 'err', text: 'Too many joins from here. Wait a minute.' })); return ws.close(4029); }
           const token = typeof m.token === 'string' ? m.token : '';
           if (!m.watch && (token.length < 8 || token.length > 100)) { ws.send(JSON.stringify({ k: 'err', text: 'Missing player token.' })); return ws.close(4001); }
-          const room = await rooms.get(typeof m.room === 'string' ? m.room : '');
+          const room = await rooms.get(typeof m.room === 'string' ? m.room : '', () => restoreLimit.hit(ip));
           if (!room) { ws.send(JSON.stringify({ k: 'err', text: 'No room with that code. It may have expired.' })); return ws.close(4004); }
           if (ws.readyState !== ws.OPEN) return;
           if (m.watch) {

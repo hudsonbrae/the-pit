@@ -22,14 +22,17 @@ export class Rooms {
 
   constructor(private deps: RoomDeps, private idleMs = 2 * 3600_000) {}
 
-  startSweeper() {
-    this.sweeper = setInterval(() => {
-      const now = Date.now();
-      for (const r of this.rooms.values()) if (!r.online && now - r.lastActive > this.idleMs) void this.close(r.code);
-    }, 60_000);
+  startSweeper() { this.sweeper = setInterval(() => void this.sweep(), 60_000); }
+
+  /** Closes rooms nobody is in: after the idle time, or after 5 minutes if nobody ever joined. */
+  async sweep(now = Date.now()) {
+    for (const r of [...this.rooms.values()]) {
+      if (r.audience) continue;
+      if (now - r.lastActive > this.idleMs || (!r.everJoined && now - r.lastActive > 5 * 60_000)) await this.close(r.code);
+    }
   }
 
-  async create(o: { mode: Mode; ticker?: string; hostToken: string; seed?: number }): Promise<Room> {
+  async create(o: { mode: Mode; ticker?: string; hostToken: string; seed?: number; owner?: string }): Promise<Room> {
     if (this.rooms.size >= this.deps.cfg.maxRooms) throw new RoomError(503, 'The server is full right now. Try again later.');
     if (typeof o.hostToken !== 'string' || o.hostToken.length < 8 || o.hostToken.length > 100) throw new RoomError(400, 'Missing player token.');
     let code = newCode();
@@ -37,6 +40,7 @@ export class Rooms {
     const hostHash = hashToken(o.hostToken);
     const seed = Number.isInteger(o.seed) && o.seed! > 0 ? o.seed! : Math.floor(Math.random() * 1e9);
     const room = o.mode === 'real' ? await this.buildReal(code, String(o.ticker || '').toUpperCase().trim(), hostHash, seed) : new Room(this.deps, { code, mode: 'sim', ticker: 'HLCN', hostHash, seed });
+    room.owner = o.owner;
     await this.deps.store.createRoom({ code, mode: room.mode, ticker: room.ticker, host_token: hostHash, seed });
     this.rooms.set(code, room);
     room.start();
@@ -58,11 +62,13 @@ export class Rooms {
   }
 
   /** The room for a join code: in memory, or rebuilt from the database (after a restart or idle close). */
-  async get(code: string): Promise<Room | null> {
+  /** `mayRestore` lets the caller rate-limit rebuilding rooms from the database (it costs a warm-up). */
+  async get(code: string, mayRestore: () => boolean = () => true): Promise<Room | null> {
     code = code.toUpperCase();
     if (!validCode(code)) return null;
     const r = this.rooms.get(code);
     if (r) return r;
+    if (!this.loading.has(code) && !mayRestore()) return null;
     if (!this.loading.has(code)) {
       this.loading.set(code, (async () => {
         try {

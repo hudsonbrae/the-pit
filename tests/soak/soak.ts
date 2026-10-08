@@ -33,7 +33,7 @@ const port = await app.listen(0);
 const base = `http://localhost:${port}`;
 
 async function mkRoom(mode: 'sim' | 'real', ticker?: string) {
-  const r = await fetch(`${base}/api/rooms`, { method: 'POST', body: JSON.stringify({ mode, ticker, token: `host-${mode}-0000` }) });
+  const r = await fetch(`${base}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode, ticker, token: `host-${mode}-0000` }) });
   return (await r.json()).code as string;
 }
 
@@ -60,7 +60,7 @@ function connect(code: string, name: string, token: string): Promise<Client> {
 let measuring = false;
 const sim = await mkRoom('sim');
 const real = await mkRoom('real', 'NVDA');
-const demoR = await fetch(`${base}/api/rooms`, { method: 'POST', body: JSON.stringify({ mode: 'sim', scenario: 'demo', token: 'host-demo-0000' }) });
+const demoR = await fetch(`${base}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'sim', scenario: 'demo', token: 'host-demo-0000' }) });
 const demo = (await demoR.json()).code as string;
 const clients = [
   await connect(sim, 'Brae', 'host-sim-0000'), await connect(sim, 'Sam', 'tok-sam-00001'), await connect(sim, 'Alex', 'tok-alex-0001'),

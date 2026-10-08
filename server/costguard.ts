@@ -13,6 +13,8 @@ export class CostGuard {
   private perRoom = new Map<string, number[]>();
   private roomDay = new Map<string, number>();
   private roomCost = new Map<string, number>();
+  private ownerDay = new Map<string, number>();
+  private roomSmall = new Map<string, number>();
   private byKind = new Map<string, { n: number; cost: number; ms: number }>();
   private day = '';
   rounds = 0;
@@ -25,11 +27,11 @@ export class CostGuard {
   /** Called after every change so the day's totals can be persisted. */
   onChange: ((u: DayUsage) => void) | null = null;
 
-  constructor(private o: { roundsPerMin: number; dailyRounds: number; dailySmall: number; roomDailyRounds?: number }, private now = () => Date.now()) {}
+  constructor(private o: { roundsPerMin: number; dailyRounds: number; dailySmall: number; roomDailyRounds?: number; ownerDailyRounds?: number; roomDailySmall?: number }, private now = () => Date.now()) {}
 
   private rollDay() {
     const d = new Date(this.now()).toISOString().slice(0, 10);
-    if (d !== this.day) { this.day = d; this.rounds = 0; this.small = 0; this.tokensIn = 0; this.tokensOut = 0; this.cost = 0; this.avoided = 0; this.roomDay.clear(); this.roomCost.clear(); this.byKind.clear(); }
+    if (d !== this.day) { this.day = d; this.rounds = 0; this.small = 0; this.tokensIn = 0; this.tokensOut = 0; this.cost = 0; this.avoided = 0; this.roomDay.clear(); this.roomCost.clear(); this.byKind.clear(); this.ownerDay.clear(); this.roomSmall.clear(); }
   }
 
   /** Restores today's totals after a restart. */
@@ -43,9 +45,11 @@ export class CostGuard {
   private changed() { this.onChange?.({ day: this.day, rounds: this.rounds, small: this.small, tokensIn: this.tokensIn, tokensOut: this.tokensOut, cost: +this.cost.toFixed(4) }); }
 
   /** Checks without consuming. `units` = how many AI calls the round needs (a debate is 2). */
-  canRound(room: string, units = 1): { ok: true } | { ok: false; reason: 'room_rate' | 'daily_cap' | 'room_daily'; retryMs?: number } {
+  canRound(room: string, units = 1, owner?: string): { ok: true } | { ok: false; reason: 'room_rate' | 'daily_cap' | 'room_daily'; retryMs?: number } {
     this.rollDay();
     if (this.rounds + units > this.o.dailyRounds) return { ok: false, reason: 'daily_cap' };
+    // one creator (IP) can't take the whole server's budget by opening many rooms
+    if (owner && (this.ownerDay.get(owner) ?? 0) + units > (this.o.ownerDailyRounds ?? Infinity)) return { ok: false, reason: 'room_daily' };
     if ((this.roomDay.get(room) ?? 0) + units > (this.o.roomDailyRounds ?? Infinity)) return { ok: false, reason: 'room_daily' };
     const t = this.now(), arr = (this.perRoom.get(room) || []).filter(x => t - x < 60_000);
     this.perRoom.set(room, arr);
@@ -53,14 +57,21 @@ export class CostGuard {
     return { ok: true };
   }
 
-  takeRound(room: string, units = 1) {
+  takeRound(room: string, units = 1, owner?: string) {
     this.rollDay(); this.rounds += units;
+    if (owner) this.ownerDay.set(owner, (this.ownerDay.get(owner) ?? 0) + units);
     this.roomDay.set(room, (this.roomDay.get(room) ?? 0) + units);
     const a = this.perRoom.get(room) || []; for (let i = 0; i < units; i++) a.push(this.now()); this.perRoom.set(room, a);
     this.changed();
   }
 
-  takeSmall(): boolean { this.rollDay(); if (this.small >= this.o.dailySmall) return false; this.small++; this.changed(); return true; }
+  takeSmall(room?: string): boolean {
+    this.rollDay();
+    if (this.small >= this.o.dailySmall) return false;
+    if (room && (this.roomSmall.get(room) ?? 0) >= (this.o.roomDailySmall ?? Infinity)) return false;
+    this.small++; if (room) this.roomSmall.set(room, (this.roomSmall.get(room) ?? 0) + 1);
+    this.changed(); return true;
+  }
 
   /** A call the game chose not to make (cap, cooldown, offline). */
   avoid() { this.rollDay(); this.avoided++; }

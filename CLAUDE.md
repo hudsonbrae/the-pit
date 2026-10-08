@@ -17,7 +17,7 @@ DECISIONS.md (why things are the way they are), docs/ROADMAP.md (what's next).
 - `npm run local`: install, build, start on :8787 (mocks when keys are absent)
 - `npm run dev`: server + Vite with hot reload on :5173
 - `npm run typecheck` · `npm test` (unit + chaos) · `npm run test:e2e` (Playwright) · `npm run soak` (10 min)
-- Admin view: http://localhost:8787/admin (loopback, or `?token=ADMIN_TOKEN`)
+- Admin view: http://localhost:8787/admin (loopback, or `/admin#token=ADMIN_TOKEN`)
 
 ## Where things live
 - `server/engine.ts` exchange · `server/room.ts` one room (rounds, debate, scoring, scenarios) · `server/intel/` stats, market intel, stories

@@ -1,6 +1,7 @@
 // The admin / observability page: rooms, engine health, sockets, AI latency, tokens,
 // estimated cost, market-data freshness, store errors, and the memory experiment.
-// Served at /admin (loopback only, or with ?token=ADMIN_TOKEN). Polls /api/admin.
+// Served at /admin. Open /admin#token=ADMIN_TOKEN (the fragment never reaches the server or its logs);
+// the page sends it as a header to /api/admin. Without ADMIN_TOKEN, only loopback and never behind a proxy.
 
 export const adminHtml = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>The Pit · Control room</title>
@@ -34,7 +35,7 @@ table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:4px 8px;
 <div class="panel"><h2>Errors</h2><div class="err" id="errs">none</div></div>
 </div>
 <script>
-const q = new URLSearchParams(location.search).get('token') || '';
+const q = new URLSearchParams(location.hash.slice(1)).get('token') || '';
 const $ = s => document.querySelector(s);
 const e = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const usd = x => x == null ? '-' : '$' + (+x).toFixed(x < 0.1 ? 4 : 2);
@@ -42,8 +43,8 @@ const kpi = o => Object.entries(o).map(([k, v]) => '<div><span>' + e(k) + '</spa
 const tbl = (cols, rows) => '<tr>' + cols.map(c => '<th>' + e(c[0]) + '</th>').join('') + '</tr>' + rows.map(r => '<tr>' + cols.map(c => '<td>' + c[1](r) + '</td>').join('') + '</tr>').join('');
 async function tick() {
   try {
-    const r = await fetch('/api/admin' + (q ? '?token=' + encodeURIComponent(q) : ''), { cache: 'no-store' });
-    if (!r.ok) { $('#meta').textContent = 'admin only (' + r.status + ')'; return; }
+    const r = await fetch('/api/admin', { cache: 'no-store', headers: q ? { 'x-admin-token': q } : {} });
+    if (!r.ok) { $('#meta').textContent = 'admin only (' + r.status + '): open /admin#token=YOUR_ADMIN_TOKEN'; return; }
     const d = await r.json();
     $('#meta').textContent = 'uptime ' + d.uptimeMin + ' min · updated ' + new Date().toLocaleTimeString();
     $('#srv').innerHTML = kpi({ Rooms: d.rooms.length, Sockets: d.sockets, 'Heap MB': d.memMB.heap, 'RSS MB': d.memMB.rss, Store: d.store.kind + (d.store.errors ? ' · ' + d.store.errors + ' errors' : '') });

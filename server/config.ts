@@ -26,6 +26,10 @@ export interface Config {
   aiDailyRoundCap: number;
   aiDailySmallCap: number;
   aiRoomDailyRoundCap: number;
+  aiOwnerDailyRoundCap: number;
+  aiRoomDailySmallCap: number;
+  /** Trust X-Forwarded-For (only behind a real proxy such as Render's). */
+  trustProxy: boolean;
   aiRoundTimeoutMs: number;
   newsCooldownSec: number;
   adminToken: string;
@@ -60,6 +64,9 @@ export function loadConfig(over: Partial<Config> = {}): Config {
     aiDailyRoundCap: num('AI_DAILY_ROUND_CAP', 200),
     aiDailySmallCap: num('AI_DAILY_SMALL_CAP', 400),
     aiRoomDailyRoundCap: num('AI_ROOM_DAILY_ROUND_CAP', 80),
+    aiOwnerDailyRoundCap: num('AI_OWNER_DAILY_ROUND_CAP', 120),
+    aiRoomDailySmallCap: num('AI_ROOM_DAILY_SMALL_CAP', 80),
+    trustProxy: ['1', 'true', 'yes'].includes(str('TRUST_PROXY').toLowerCase()) || (str('TRUST_PROXY') === '' && !!process.env.RENDER),
     aiRoundTimeoutMs: num('AI_ROUND_TIMEOUT_MS', 40_000),
     newsCooldownSec: num('NEWS_COOLDOWN_SEC', 8),
     adminToken: str('ADMIN_TOKEN'),

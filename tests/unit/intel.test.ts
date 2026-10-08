@@ -270,3 +270,51 @@ describe('stories, achievements, scenarios, closing bell, lab', () => {
     expect(fake.calls.at(-1)!.effort).toBe('low');
   });
 });
+
+describe('cost amplification closed', () => {
+  it('deep think costs three units; a creator (IP) has its own daily share', async () => {
+    const fake = new FakeLLM({ firstTokenMs: 0, chunkMs: 0 });
+    const d = deps({ llm: fake, cfg: { aiRoundsPerMinPerRoom: 100 } });
+    (d.guard as unknown as { o: { ownerDailyRounds: number } }).o.ownerDailyRounds = 4;
+    const a = simRoom(d, 'OWNRA'), b = simRoom(d, 'OWNRB');
+    a.owner = b.owner = '1.2.3.4'; a.lab.debate = b.lab.debate = 'off';
+    await a.runRound({ text: 'deep one', byName: 'x', origin: 'PLAYER', deep: true });      // 3 units
+    expect(d.guard.stats().rounds).toBe(3);
+    await b.runRound({ text: 'normal', byName: 'x', origin: 'PLAYER' });                     // 4th unit, allowed
+    await b.runRound({ text: 'over', byName: 'x', origin: 'PLAYER' });                       // 5th: over this creator's share
+    expect(b.round.note).toMatch(/used its AI rounds/);
+    expect(fake.calls).toHaveLength(2);
+  });
+
+  it('small calls are capped per room, and the narrator runs once per session', async () => {
+    const fake = new FakeLLM({ firstTokenMs: 0, chunkMs: 0 });
+    const d = deps({ llm: fake });
+    (d.guard as unknown as { o: { roomDailySmall: number } }).o.roomDailySmall = 1;
+    const room = simRoom(d);
+    const c = new RecConn(); const host = join(room, c, 'host-token-1', 'Brae');
+    await room.handle(c, host, { k: 'host', action: 'close' });
+    await until(() => c.of('stream').some(m => m.kind === 'recap' && m.done));
+    const n = fake.calls.length;
+    room.session = 'open';
+    await room.handle(c, host, { k: 'host', action: 'close' });                // ring it again without a reset
+    await new Promise(r => setTimeout(r, 50));
+    expect(fake.calls.length).toBe(n);                                         // no second narration
+    await room.handle(c, host, { k: 'ask', id: 'pip', q: 'why?' });
+    await until(() => c.of('stream').some(m => m.kind === 'ask' && m.done));
+    expect(c.of('stream').filter(m => m.kind === 'ask').at(-1)!.error).toMatch(/budget/);   // room's small cap (1) already used
+  });
+
+  it('names cannot smuggle invisible characters to impersonate a trader', () => {
+    const room = simRoom(deps());
+    const p = join(room, new RecConn(), 'tok-zero-width', 'Marl​owe‮');
+    expect(p.name).toBe('Marlowe 2');
+  });
+
+  it('a spammer\'s orders cannot push AI calls out of the scorebook', () => {
+    const sb = new Scorebook();
+    sb.record({ who: 'vega', ai: true, t: 0, px: 100, call: 'up', conviction: 80, action: 'buy', qty: 100, fill: 100, head: 'x', category: 'other', clock: '09:44' });
+    for (let i = 0; i < 2000; i++) sb.record({ who: 'p1', ai: false, t: 1, px: 100, call: 'up', conviction: 0, action: 'buy', qty: 100, fill: 100, head: 'x', category: 'other', clock: '09:44' });
+    expect(sb.pending.some(c => c.who === 'vega')).toBe(true);
+    expect(sb.pending.length).toBeLessThanOrEqual(600);
+  });
+});

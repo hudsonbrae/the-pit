@@ -17,7 +17,7 @@ import {
 } from './prompts.js';
 import { offline } from './offline.js';
 import { lineSplitter, parseLine, LLMError, type LLM, type LLMUsage } from './ai/llm.js';
-import { validateDesk, validateDecision, validateChatter, cleanText, type Decision, type Desk, type TradeLimits } from './ai/schema.js';
+import { validateDesk, validateDecision, validateChatter, cleanText, quoteUntrusted, type Decision, type Desk, type TradeLimits } from './ai/schema.js';
 import type { CostGuard } from './costguard.js';
 import type { Config } from './config.js';
 import type { Store, PlayerRow } from './store/store.js';
@@ -291,6 +291,12 @@ export class Room {
   private currentAct: string | null = null;
   /** A scenario to start when the host first arrives (the lobby's "Run the demo"). */
   autoStart: string | undefined;
+  /** Who created the room (an IP key): AI rounds are also capped per creator. */
+  owner: string | undefined;
+  /** Has anyone ever joined? Rooms nobody joins are swept quickly. */
+  everJoined = false;
+  private narrated = false;
+  private lastRoomAsk = 0;
 
   private agentV(a: AgentRT): AgentV {
     return {
@@ -543,6 +549,7 @@ export class Room {
     }
     if (p.conns.size >= MAX_CONNS_PER_PLAYER) { const oldest = p.conns.values().next().value!; p.conns.delete(oldest); try { oldest.close?.(4009, 'opened elsewhere'); } catch { /* gone */ } }
     p.conns.add(c);
+    this.everJoined = true;
     this.lastActive = Date.now();
     this.sendTo(c, { k: 'hello', you: this.playerV(p), room: this.info(), snap: this.snapshot() });
     this.broadcast({ k: 'players', players: this.playersV() });
@@ -555,7 +562,7 @@ export class Room {
   watch(c: Conn): string | null {
     if (this.disposed) return 'This room has closed.';
     if (this.watchers.size >= 50) return 'Too many spectators in this room.';
-    this.watchers.add(c);
+    this.watchers.add(c); this.everJoined = true;
     this.sendTo(c, { k: 'hello', you: null, room: this.info(), snap: this.snapshot() });
     this.broadcast({ k: 'room', room: this.info() });
     if (this.audience === 1) this.pumpLive();
@@ -620,8 +627,8 @@ export class Room {
       case 'surprise': if (!this.cooldown(c, p)) return; return this.surprise(c, p, !!m.deep && p.host, m.debate === true);
       case 'wrap': return this.wrap(c);
       case 'ask': {
-        if (Date.now() - p.lastAsk < 4000) return this.sendTo(c, { k: 'stream', kind: 'ask', text: '', done: true, error: 'One question every few seconds, please.' });
-        p.lastAsk = Date.now();
+        if (Date.now() - p.lastAsk < 4000 || Date.now() - this.lastRoomAsk < 1500) return this.sendTo(c, { k: 'stream', kind: 'ask', text: '', done: true, error: 'The traders are busy answering. Ask again in a few seconds.' });
+        p.lastAsk = Date.now(); this.lastRoomAsk = Date.now();
         return this.ask(c, String(m.id), typeof m.q === 'string' ? m.q.slice(0, 300) : '');
       }
       case 'host': {
@@ -694,7 +701,7 @@ export class Room {
     void this.deps.store.saveLeaderboard(rows);
     for (const p of this.players.values()) { p.cash = START_CASH; p.sh = 0; p.cost = 0; p.start = START_CASH; p.dirty = true; }
     this.liveQueue = []; this.scen = null; this.scenKnobs = { vol: 1, liq: 1, spread: 1, crowd: 1 }; this.currentAct = null;
-    this.session = 'open'; if (this.speed === 0) this.speed = 1;
+    this.session = 'open'; this.narrated = false; if (this.speed === 0) this.speed = 1;
     this.tell.reset();
     this.build(this.real?.price ?? undefined);
     this.intelV = this.intel.compute(this.eng, this.sb, this.teams());
@@ -809,9 +816,10 @@ export class Room {
     void this.saveStats(true);
     // the narrator: Claude writes the match report; offline, the recap stands on its own
     const stream = (text: string, done: boolean, error?: string) => this.broadcast({ k: 'stream', kind: 'recap', text, done, error });
-    if (!this.aiOn()) return stream('', true);
-    const board = recap.standings.map(r => `${r.name}${r.human ? ' (human)' : ''}: ${money(r.pnl)}`).join('\n');
-    const moments = this.tell.stories.slice().reverse().filter(s => s.weight >= 2).slice(-12).map(s => `${s.clock} ${s.text}`).join('\n');
+    if (!this.aiOn() || this.narrated) return stream('', true);
+    this.narrated = true;                                     // one narration per session, however often the bell rings
+    const board = recap.standings.map(r => `<player>${quoteUntrusted(r.name, 20)}</player>${r.human ? ' (human)' : ''}: ${money(r.pnl)}`).join('\n');
+    const moments = this.tell.stories.slice().reverse().filter(s => s.weight >= 2).slice(-12).map(s => `${s.clock} ${quoteUntrusted(s.text, 200)}`).join('\n');
     const pr = wrapPrompt(this.ctx(), board, moments);
     const r = await this.small(pr.system, pr.user, this.deps.cfg.models.narrator, full => stream(full, false), 700, 'narrator');
     stream(r.text, true, r.err ? 'The narrator was cut off.' : undefined);
@@ -870,14 +878,14 @@ export class Room {
   private pumpLive() {
     if (this.disposed || this.round.busy || !this.liveQueue.length || !this.audience) return;
     const debate = this.lab.debate !== 'off';
-    const g = this.deps.guard.canRound(this.code, debate ? 2 : 1);
+    const g = this.deps.guard.canRound(this.code, debate ? 2 : 1, this.owner);
     if (!g.ok && g.reason === 'room_rate' && this.aiOn()) {
       if (!this.liveRetry) this.liveRetry = setTimeout(() => { this.liveRetry = null; this.pumpLive(); }, Math.max(1000, g.retryMs ?? 5000));
       return;
     }
     const h = this.liveQueue.shift()!;
     this.stats.live++;
-    void this.runRound({ text: cleanText(h.headline, 220), byName: 'LIVE wire', origin: 'LIVE', debate, source: cleanText(h.source, 60), at: new Date(h.time).toISOString(), url: /^https?:\/\//i.test(h.url ?? '') ? h.url : undefined })
+    void this.runRound({ text: cleanText(h.headline, 220), byName: 'LIVE wire', origin: 'LIVE', debate, source: cleanText(h.source, 60), at: Number.isFinite(h.time) ? new Date(h.time).toISOString() : undefined, url: /^https?:\/\//i.test(h.url ?? '') ? h.url : undefined })
       .catch(e => console.error(JSON.stringify({ ev: 'round_crash', room: this.code, error: String(e?.message ?? e) })));
   }
 
@@ -918,7 +926,7 @@ export class Room {
       ? { id: ++this.newsId, kind: 'check', time: this.eng.clock(), text: 'Floor check: traders reassess', read: '', origin: 'PLAYER', by: o.byName ?? undefined }
       : { id: ++this.newsId, kind: 'news', no: ++this.newsNo, time: this.eng.clock(), text, impact: null, read: '', origin: o.origin, by: o.byName ?? undefined, source: o.source, at: o.at, url: o.url, debate };
     this.news.unshift(item); if (this.news.length > 100) this.news.length = 100;
-    if (!isCheck) { this.addMarker(item.no!); this.newsMoves.push({ id: item.id, t: this.eng.S.t, px: this.eng.S.last }); }
+    if (!isCheck) { this.addMarker(item.no!); this.newsMoves.push({ id: item.id, t: this.eng.S.t, px: this.eng.S.last }); if (this.newsMoves.length > 50) this.newsMoves.shift(); }
     const cat = isCheck ? 'other' : categorise(text);
     this.agents.forEach(a => {
       a.thinking = isCheck ? 'Reviewing…' : 'Reading the headline…'; a.opening = null; a.changed = null;
@@ -956,15 +964,15 @@ export class Room {
     let note = '';
     let usedAI = false;
     const llm = this.deps.llm;
-    const units = debate ? 2 : 1;
-    const g = this.deps.guard.canRound(this.code, units);
+    const units = (debate ? 2 : 1) + (o.deep ? 2 : 0);       // a debate is two calls; deep think costs ~3x
+    const g = this.deps.guard.canRound(this.code, units, this.owner);
     if (!llm) note = 'Claude is not connected here, so the traders ran on offline rules.';
     else if (this.deps.aiState.dead) note = 'The Anthropic API key was rejected, so the traders ran on offline rules.';
     else if (!g.ok) {
       note = g.reason === 'daily_cap' ? 'Today’s AI budget is used up, so offline rules took this one.' : g.reason === 'room_daily' ? 'This room has used its AI rounds for today, so offline rules took this one.' : `AI round limit for this room reached (${this.deps.cfg.aiRoundsPerMinPerRoom} a minute). Offline rules took this one.`;
       this.deps.guard.avoid();
     } else {
-      this.deps.guard.takeRound(this.code, units);
+      this.deps.guard.takeRound(this.code, units, this.owner);
       const effort = o.deep ? this.deps.cfg.effortDeep : this.deps.cfg.effortRound;
       const maxTok = o.deep ? 16000 : 6000;
       const ctx = this.ctx(isCheck ? null : text);
@@ -1098,7 +1106,7 @@ export class Room {
   private async small(system: string, user: string, model: string, onText: (full: string) => void, maxTokens: number, kind: string): Promise<{ text: string; err?: string }> {
     const llm = this.deps.llm;
     if (!llm || this.deps.aiState.dead) return { text: '', err: 'nollm' };
-    if (!this.deps.guard.takeSmall()) { this.deps.guard.avoid(); return { text: '', err: 'cap' }; }
+    if (!this.deps.guard.takeSmall(this.code)) { this.deps.guard.avoid(); return { text: '', err: 'cap' }; }
     let full = '';
     const t0 = Date.now();
     let usage: LLMUsage | null = null;
@@ -1121,6 +1129,7 @@ export class Room {
   private async surprise(c: Conn | null, p: Player | null, deep: boolean, debate: boolean) {
     if (this.round.busy) { if (c) this.toast(c, `A round is already in flight${this.round.by ? ` (${this.round.by})` : ''}. Try again when it lands.`, 'news'); return; }
     if (!this.aiOn()) { if (c) this.toast(c, 'Claude is not connected here. Type a headline or pick one above.', 'news'); return; }
+    if (!this.deps.guard.canRound(this.code, debate ? 2 : 1, this.owner).ok) { if (c) this.toast(c, 'The AI budget for this room is used up for now. Type a headline instead.', 'news'); return; }
     this.round = { busy: true, by: p?.name ?? 'AI desk', status: 'Claude is writing a headline…' };
     this.sendRound();
     const pr = surprisePrompt(this.ctx());
@@ -1138,8 +1147,8 @@ export class Room {
     if (Date.now() - this.lastWrap < 20_000) return stream('', true, 'A wrap was just written. Try again in a few seconds.');
     this.lastWrap = Date.now();
     stream('Writing…', false);
-    const board = this.standings().map(r => `${r.name}${r.human ? ' (human player)' : ''}: P&L ${money(r.pnl)}, holds ${fi(this.eng.S.accounts[r.id]?.sh ?? 0)} sh`).join('\n');
-    const moments = this.tell.stories.slice().reverse().filter(s => s.weight >= 2).slice(-10).map(s => `${s.clock} ${s.text}`).join('\n');
+    const board = this.standings().map(r => `<player>${quoteUntrusted(r.name, 20)}</player>${r.human ? ' (human player)' : ''}: P&L ${money(r.pnl)}, holds ${fi(this.eng.S.accounts[r.id]?.sh ?? 0)} sh`).join('\n');
+    const moments = this.tell.stories.slice().reverse().filter(s => s.weight >= 2).slice(-10).map(s => `${s.clock} ${quoteUntrusted(s.text, 200)}`).join('\n');
     const pr = wrapPrompt(this.ctx(), board, moments);
     const r = await this.small(pr.system, pr.user, this.deps.cfg.models.narrator, full => stream(full, false), 700, 'wrap');
     if (r.err) stream(r.text, true, r.err === 'cap' ? 'Today’s AI budget is used up.' : 'The wrap could not be finished. Try again in a moment.');
@@ -1180,7 +1189,7 @@ export class Room {
 }
 
 export function cleanName(s: string) {
-  return String(typeof s === 'string' ? s : '').replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 20);
+  return String(typeof s === 'string' ? s : '').replace(/[\u0000-\u001f\u007f<>\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').replace(/\s+/g, ' ').trim().slice(0, 20);
 }
 function uniqueName(name: string, taken: string[]) {
   const reserved = [...AGENTS.map(a => a.name.toLowerCase()), 'you', 'live wire', 'ai desk'];

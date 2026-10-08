@@ -37,7 +37,7 @@ export class FinnhubProvider implements MarketProvider {
   async news(symbol: string, from: string, to: string): Promise<Headline[]> {
     const rows = await this.get<{ id: number; headline: string; source: string; url: string; datetime: number; summary?: string }[]>('/company-news', { symbol, from, to });
     if (!Array.isArray(rows)) return [];
-    return rows.filter(r => r && r.headline).map(r => ({ id: String(r.id), headline: r.headline.trim(), source: r.source || 'Finnhub', url: r.url, time: r.datetime * 1000, summary: r.summary }))
+    return rows.filter(r => r && typeof r.headline === 'string' && r.headline.trim() && Number.isFinite(r.datetime)).map(r => ({ id: String(r.id), headline: r.headline.trim(), source: typeof r.source === 'string' ? r.source : 'Finnhub', url: typeof r.url === 'string' ? r.url : '', time: r.datetime * 1000, summary: r.summary }))
       .sort((a, b) => b.time - a.time);
   }
 

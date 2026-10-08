@@ -18,7 +18,7 @@ function raw(path: string, headers: Record<string, string> = {}): Promise<number
 }
 const alive = async () => (await fetch(`${base()}/api/health`)).ok;
 async function mkRoom(token = 'host-token-' + Math.random().toString(36).slice(2)) {
-  const r = await fetch(`${base()}/api/rooms`, { method: 'POST', body: JSON.stringify({ mode: 'sim', token }) });
+  const r = await fetch(`${base()}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'sim', token }) });
   return { code: (await r.json()).code as string, token };
 }
 function sock(opts: { origin?: string } = {}): Promise<WebSocket> {
@@ -121,7 +121,7 @@ describe('security', () => {
 
   it('admin needs the token', async () => {
     expect((await fetch(`${base()}/api/admin`)).status).toBe(403);
-    const r = await fetch(`${base()}/api/admin?token=sekret`);
+    const r = await fetch(`${base()}/api/admin`, { headers: { 'x-admin-token': 'sekret' } });
     expect(r.status).toBe(200);
     const d = await r.json();
     expect(d).toHaveProperty('ai.costUSD');
@@ -141,7 +141,7 @@ describe('failure is graceful', () => {
     const broken = new Proxy({ kind: 'supabase' }, { get: (t, k) => k === 'kind' ? 'supabase' : async () => { throw new Error('db down'); } }) as unknown as Store;
     const a = createApp({ llm: new FakeLLM({ firstTokenMs: 0, chunkMs: 0 }), store: broken, market: null, cfg: { roundPaceMs: 0, chatterPaceMs: 0, newsCooldownSec: 0 } });
     const p = await a.listen(0);
-    const r = await fetch(`http://localhost:${p}/api/rooms`, { method: 'POST', body: JSON.stringify({ mode: 'sim', token: 'host-token-abc' }) });
+    const r = await fetch(`http://localhost:${p}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'sim', token: 'host-token-abc' }) });
     expect(r.status).toBe(200);
     const room = a.rooms.rooms.get((await r.json()).code)!;
     await room.runRound({ text: 'Still trading', byName: 'x', origin: 'PLAYER' });
@@ -154,10 +154,10 @@ describe('failure is graceful', () => {
     const m = new FakeMarket(); m.down = true;
     const a = createApp({ llm: null, market: m });
     const p = await a.listen(0);
-    const r = await fetch(`http://localhost:${p}/api/rooms`, { method: 'POST', body: JSON.stringify({ mode: 'real', ticker: 'NVDA', token: 'host-token-abc' }) });
+    const r = await fetch(`http://localhost:${p}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'real', ticker: 'NVDA', token: 'host-token-abc' }) });
     expect(r.status).toBe(404);
     expect((await r.json()).error).toMatch(/No live quote/);
-    const s = await fetch(`http://localhost:${p}/api/rooms`, { method: 'POST', body: JSON.stringify({ mode: 'sim', token: 'host-token-abc' }) });
+    const s = await fetch(`http://localhost:${p}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'sim', token: 'host-token-abc' }) });
     expect(s.status).toBe(200);
     await a.close();
   });
@@ -165,7 +165,7 @@ describe('failure is graceful', () => {
   it('room creation is rate-limited per IP', async () => {
     const a = createApp({ llm: null, market: null, cfg: { roomCreatesPerIpPerMin: 2 } });
     const p = await a.listen(0);
-    const post = () => fetch(`http://localhost:${p}/api/rooms`, { method: 'POST', body: JSON.stringify({ mode: 'sim', token: 'host-token-abc' }) }).then(r => r.status);
+    const post = () => fetch(`http://localhost:${p}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'sim', token: 'host-token-abc' }) }).then(r => r.status);
     expect([await post(), await post(), await post()]).toEqual([200, 200, 429]);
     await a.close();
   });
@@ -174,7 +174,7 @@ describe('failure is graceful', () => {
     const store = new MemoryStore();
     const a = createApp({ llm: new FakeLLM({ firstTokenMs: 0, chunkMs: 0 }), store, market: null, cfg: { roundPaceMs: 0, chatterPaceMs: 0 } });
     const p = await a.listen(0);
-    const r = await fetch(`http://localhost:${p}/api/rooms`, { method: 'POST', body: JSON.stringify({ mode: 'sim', token: 'host-token-abc' }) });
+    const r = await fetch(`http://localhost:${p}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'sim', token: 'host-token-abc' }) });
     const room = a.rooms.rooms.get((await r.json()).code)!;
     room.lab.debate = 'off';
     await room.runRound({ text: 'x', byName: 'x', origin: 'PLAYER' });
@@ -186,5 +186,39 @@ describe('failure is graceful', () => {
     await new Promise(r => setTimeout(r, 50));
     expect(b.deps.guard.stats().rounds).toBe(1);
     await b.close();
+  });
+});
+
+describe('second security pass', () => {
+  it('room creation needs JSON from this site', async () => {
+    const plain = await fetch(`${base()}/api/rooms`, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ mode: 'sim', token: 'host-token-abc' }) });
+    expect(plain.status).toBe(415);
+    const cross = await fetch(`${base()}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://evil.example' }, body: JSON.stringify({ mode: 'sim', token: 'host-token-abc' }) });
+    expect(cross.status).toBe(403);
+  });
+
+  it('a forged X-Forwarded-For does not dodge the per-IP limits (no trusted proxy)', async () => {
+    const a = createApp({ llm: null, market: null, cfg: { roomCreatesPerIpPerMin: 2, trustProxy: false } });
+    const p = await a.listen(0);
+    const post = (i: number) => fetch(`http://localhost:${p}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.0.0.${i}` }, body: JSON.stringify({ mode: 'sim', token: 'host-token-abc' }) }).then(r => r.status);
+    expect([await post(1), await post(2), await post(3)]).toEqual([200, 200, 429]);
+    await a.close();
+  });
+
+  it('the admin token is accepted only as a header, never in the URL', async () => {
+    expect((await fetch(`${base()}/api/admin?token=sekret`)).status).toBe(403);
+    expect((await fetch(`${base()}/api/admin`, { headers: { 'x-admin-token': 'wrong' } })).status).toBe(403);
+    expect((await fetch(`${base()}/admin`)).headers.get('referrer-policy')).toBe('no-referrer');
+  });
+
+  it('rooms nobody ever joins are swept within minutes, not hours', async () => {
+    const { code } = await mkRoom();
+    const r = app.rooms.rooms.get(code)!;
+    expect(r.everJoined).toBe(false);
+    r.lastActive = Date.now() - 6 * 60_000;
+    const fresh = await mkRoom();                              // a brand-new unjoined room survives
+    await app.rooms.sweep();
+    expect(app.rooms.rooms.has(code)).toBe(false);
+    expect(app.rooms.rooms.has(fresh.code)).toBe(true);
   });
 });

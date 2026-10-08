@@ -70,7 +70,10 @@ export class Scorebook {
 
   record(c: CallRec) {
     this.pending.push(c);
-    if (this.pending.length > 500) this.pending.shift();
+    if (this.pending.length > 600) {                         // drop the oldest HUMAN call first: AI calls must be scored
+      const i = this.pending.findIndex(x => !x.ai);
+      this.pending.splice(i >= 0 ? i : 0, 1);
+    }
     if (c.ai) this.latest.set(c.who, c);
   }
 
