@@ -1,75 +1,75 @@
 {
-  "ranAt": "2026-10-08T10:56:19.247Z",
-  "minutes": 1.5,
-  "warmupMinutes": 0.5,
-  "heapBaselineMB": 19.7,
-  "heapEndMB": 20.2,
-  "heapGrowthMB": 0.4,
-  "heapSlopeMBPerMin": 0.43,
-  "eventLoopP99ms": 10.9,
-  "eventLoopMaxMs": 128.3,
+  "ranAt": "2026-10-08T11:12:20.583Z",
+  "minutes": 10,
+  "warmupMinutes": 2,
+  "heapBaselineMB": 20.3,
+  "heapEndMB": 21.3,
+  "heapGrowthMB": 1,
+  "heapSlopeMBPerMin": 0.12,
+  "eventLoopP99ms": 10.8,
+  "eventLoopMaxMs": 66,
   "rounds": [
     {
-      "code": "PVDYF",
+      "code": "CRZUU",
       "mode": "sim",
-      "rounds": 3,
-      "aiRounds": 2,
+      "rounds": 19,
+      "aiRounds": 19,
       "offlineRounds": 0,
       "live": 0
     },
     {
-      "code": "ATXBJ",
+      "code": "MMYUA",
       "mode": "real",
-      "rounds": 3,
-      "aiRounds": 3,
+      "rounds": 19,
+      "aiRounds": 19,
       "offlineRounds": 0,
-      "live": 2
+      "live": 8
     }
   ],
   "clients": [
     {
       "name": "Brae",
-      "deltasPerSec": 6.18,
-      "avgBytes": 1328,
+      "deltasPerSec": 6.2,
+      "avgBytes": 1300,
       "p99GapMs": 251,
-      "maxGapMs": 254
+      "maxGapMs": 279
     },
     {
       "name": "Sam",
-      "deltasPerSec": 6.18,
-      "avgBytes": 1328,
+      "deltasPerSec": 6.2,
+      "avgBytes": 1300,
       "p99GapMs": 251,
-      "maxGapMs": 254
+      "maxGapMs": 279
     },
     {
       "name": "Alex",
-      "deltasPerSec": 6.18,
-      "avgBytes": 1328,
+      "deltasPerSec": 6.2,
+      "avgBytes": 1300,
       "p99GapMs": 251,
-      "maxGapMs": 254
+      "maxGapMs": 279
     },
     {
       "name": "Brae",
-      "deltasPerSec": 5.53,
-      "avgBytes": 1266,
+      "deltasPerSec": 5.52,
+      "avgBytes": 1286,
       "p99GapMs": 251,
-      "maxGapMs": 330
+      "maxGapMs": 277
     },
     {
       "name": "Kim",
-      "deltasPerSec": 5.53,
-      "avgBytes": 1266,
+      "deltasPerSec": 5.52,
+      "avgBytes": 1286,
       "p99GapMs": 251,
-      "maxGapMs": 330
+      "maxGapMs": 277
     }
   ],
   "usage": {
     "day": "2026-10-08",
-    "rounds": 6,
+    "rounds": 38,
     "roundCap": 200,
-    "small": 1,
+    "small": 9,
     "smallCap": 400,
-    "tokensIn": 7943,
-    "tokensOut": 2081
+    "tokensIn": 74549,
+    "tokensOut": 16246
   }
 }

@@ -44,10 +44,12 @@ changed without touching the rest.
 
 ## Transport: raw WebSockets, not Supabase Realtime
 
-The brief says to measure first. The soak test (`tests/soak/last-run.json`)
-shows each client receiving about 4–6 messages a second, about 1.3 KB each,
-evenly spaced (p99 gap 251 ms, worst gap about 330 ms), with event-loop p99
-under 50 ms. Raw `ws` is already smooth, and it has to exist anyway because
+The brief says to measure first. In the 10-minute soak test
+(`tests/soak/last-run.json`), 5 clients in 2 rooms each received 5.5–6.2
+messages a second (4 tick deltas plus instant flushes after fills), about
+1.3 KB each, evenly spaced: p99 gap 251 ms, worst gap 279 ms. The
+event-loop p99 was 10.8 ms. Heap went from 20.3 to 21.3 MB over 8 minutes
+after warm-up (0.12 MB/min) while 38 AI rounds ran. Raw `ws` is already smooth, and it has to exist anyway because
 the server is authoritative and must receive intents (orders, news, ask).
 Supabase Realtime would add a hop through Supabase for every tick, plus a
 second channel for intents. On the free plan its monthly message quota

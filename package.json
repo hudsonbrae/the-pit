@@ -9,7 +9,7 @@
   },
   "scripts": {
     "local": "npm install && npm run build && npm start",
-    "dev": "concurrently -k -n server,web -c yellow,cyan \"tsx watch server/index.ts\" \"vite\"",
+    "dev": "node scripts/dev.mjs",
     "build": "vite build",
     "start": "tsx server/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -27,7 +27,6 @@
     "@playwright/test": "^1.56.1",
     "@types/node": "^26.6.4",
     "@types/ws": "^8.18.2",
-    "concurrently": "^10.0.5",
     "typescript": "^7.0.2",
     "vite": "^8.3.3",
     "vitest": "^5.0.3"

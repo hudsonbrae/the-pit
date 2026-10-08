@@ -486,7 +486,7 @@ export class Room {
     }
     const h = this.liveQueue.shift()!;
     this.stats.live++;
-    void this.runRound({ text: h.headline, byName: 'LIVE wire', origin: 'LIVE', source: h.source, at: new Date(h.time).toISOString(), url: h.url });
+    void this.runRound({ text: h.headline.slice(0, 220), byName: 'LIVE wire', origin: 'LIVE', source: h.source?.slice(0, 60), at: new Date(h.time).toISOString(), url: /^https?:\/\//i.test(h.url ?? '') ? h.url : undefined });
   }
 
   // ---------- AI round (port of breakNews) ----------
@@ -543,7 +543,7 @@ export class Room {
       const t0 = Date.now();
       try {
         usage = await llm.stream({
-          model: this.deps.cfg.modelRound, prompt: tradePrompt(this.ctx(), isCheck ? null : text), maxTokens: 4000,
+          model: this.deps.cfg.modelRound, prompt: tradePrompt(this.ctx(), isCheck ? null : text), maxTokens: o.deep ? 16000 : 6000,
           effort: o.deep ? this.deps.cfg.effortDeep : this.deps.cfg.effortRound,
         }, delta => split.push(delta));
         split.end();

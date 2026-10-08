@@ -173,3 +173,18 @@ describe('Finnhub provider', () => {
     expect(await f.quote('B')).toBeNull();                                   // 3rd call in a minute with a limit of 2
   });
 });
+
+describe('LIVE headline links', () => {
+  it('only http(s) article links are passed to browsers', async () => {
+    const market = new FakeMarket(); market.forceOpen = true;
+    const hub = new MarketHub(market, { quoteEverySec: 15, newsEverySec: 180, autoPoll: false });
+    const rooms = new Rooms(deps({ llm: new FakeLLM({ firstTokenMs: 0, chunkMs: 0 }), hub }));
+    const room = await rooms.create({ mode: 'real', ticker: 'AAPL', hostToken: 'host-token-1' });
+    room.attach(new RecConn(), 'host-token-1', 'Brae');
+    market.push('AAPL', { id: 'bad', headline: 'Click me', url: 'javascript:alert(1)' });
+    await hub.feeds.get('AAPL')!.pollNews();
+    await until(() => room.stats.rounds === 1 && !room.round.busy);
+    expect(room.news.find(n => n.text === 'Click me')!.url).toBeUndefined();
+    await rooms.closeAll();
+  });
+});
